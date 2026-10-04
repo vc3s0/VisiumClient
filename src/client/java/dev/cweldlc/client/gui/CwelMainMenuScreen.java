@@ -139,7 +139,7 @@ public class CwelMainMenuScreen extends Screen {
         int cardX = (this.width - cardWidth) / 2;
         int cardY = (int) (this.height * 0.46f) - cardPadding;
 
-        GlassRenderUtil.drawGlassPanel(graphics, cardX, cardY, cardWidth, cardHeight, 18, false, 0.0f);
+        GlassRenderUtil.drawTranslucentGlassPanel(graphics, cardX, cardY, cardWidth, cardHeight, 18, 0x60);
 
         // 4. Client Branding above the central card
         renderBranding(graphics);
@@ -159,7 +159,7 @@ public class CwelMainMenuScreen extends Screen {
         int badgeWidth = 180;
         int badgeHeight = 38;
         int badgeX = centerX - badgeWidth / 2;
-        GlassRenderUtil.drawGlassPanel(graphics, badgeX, titleY, badgeWidth, badgeHeight, 19, false, 0.0f);
+        GlassRenderUtil.drawTranslucentGlassPanel(graphics, badgeX, titleY, badgeWidth, badgeHeight, 19, 0x60);
 
         // Glowing "VisiumClient" Title via MSDF vector font (centered in capsule)
         MsdfRenderer.renderCenteredText(

@@ -142,6 +142,19 @@ public class GlassRenderUtil {
         fillRoundedRect(graphics, x, y, width, height, radius, baseColor);
     }
 
+    /**
+     * Renders an antialiased translucent glass panel with custom alpha.
+     */
+    public static void drawTranslucentGlassPanel(GuiGraphics graphics, float x, float y, float width, float height, float radius, int alpha) {
+        int clampedAlpha = Math.max(0, Math.min(255, alpha));
+        int color = (clampedAlpha << 24) | 0x0C0C0C;
+        fillRoundedRect(graphics, x, y, width, height, radius, color);
+    }
+
+    public static void drawTranslucentGlassPanel(GuiGraphics graphics, int x, int y, int width, int height, int radius, int alpha) {
+        drawTranslucentGlassPanel(graphics, (float) x, (float) y, (float) width, (float) height, (float) radius, alpha);
+    }
+
     public static int lerpColor(int c1, int c2, float t) {
         t = Math.max(0.0f, Math.min(1.0f, t));
         int a1 = (c1 >> 24) & 0xFF, r1 = (c1 >> 16) & 0xFF, g1 = (c1 >> 8) & 0xFF, b1 = c1 & 0xFF;

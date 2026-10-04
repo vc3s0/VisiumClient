@@ -174,15 +174,15 @@ public class AppleClockWidget extends AbstractWidget {
         this.height = (int) Math.ceil(curH);
 
         // 1. Sleek Apple LiquidGlass Container (morphs height on expansion)
-        GlassRenderUtil.drawGlassPanel(
+        int clockAlpha = (int) (0x60 + hoverProgress * 0x18);
+        GlassRenderUtil.drawTranslucentGlassPanel(
                 graphics,
                 getX(),
                 getY(),
                 getWidth(),
                 (int) curH,
                 12,
-                hovered,
-                hoverProgress
+                clockAlpha
         );
 
         ZonedDateTime zdt = ZonedDateTime.now();
