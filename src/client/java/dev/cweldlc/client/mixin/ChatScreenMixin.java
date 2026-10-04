@@ -97,10 +97,6 @@ public abstract class ChatScreenMixin extends Screen {
         }
     }
 
-    @Inject(method = "charTyped", at = @At("HEAD"))
-    private void onCharTyped(char codePoint, int modifiers, org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
-        dev.cweldlc.client.util.ClientSounds.play(dev.cweldlc.client.util.ClientSounds.TYPING, 0.92f + (float) (Math.random() * 0.16), 0.6f);
-    }
 
     @Inject(method = "keyPressed", at = @At("HEAD"))
     private void onKeyPressed(int keyCode, int scanCode, int modifiers, org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
