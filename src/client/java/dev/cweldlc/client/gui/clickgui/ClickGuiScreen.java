@@ -10,7 +10,6 @@ import dev.cweldlc.client.module.setting.ColorSetting;
 import dev.cweldlc.client.module.setting.ModeSetting;
 import dev.cweldlc.client.module.setting.NumberSetting;
 import dev.cweldlc.client.module.setting.Setting;
-import dev.cweldlc.client.theme.ThemeManager;
 import dev.cweldlc.client.util.ClientSounds;
 import dev.cweldlc.client.util.GlassRenderUtil;
 import net.minecraft.client.Minecraft;
@@ -21,11 +20,9 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
-import org.joml.Matrix4f;
 import org.lwjgl.glfw.GLFW;
 
 import java.awt.Color;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +31,6 @@ import java.util.stream.Collectors;
 public class ClickGuiScreen extends Screen {
 
     private final Screen parent;
-    private Category currentCategory = Category.COMBAT;
     private String selectedSubTab = "Combat";
 
     // Active state trackers
@@ -72,7 +68,6 @@ public class ClickGuiScreen extends Screen {
     private final Map<Module, Float> moduleToggleMap = new HashMap<>();
     private final Map<Module, Float> moduleGearHoverMap = new HashMap<>();
     private final Map<BooleanSetting, Float> boolToggleMap = new HashMap<>();
-    private final Map<NumberSetting, Float> sliderValueMap = new HashMap<>();
     private final Map<String, Float> tabHoverMap = new HashMap<>();
 
     public ClickGuiScreen() {
@@ -116,9 +111,11 @@ public class ClickGuiScreen extends Screen {
         float animProgress = isClosing ? closeProgress : openProgress;
         float currentAlpha = Math.max(0.0f, Math.min(1.0f, animProgress));
 
-        // 2. Cinematic backdrop dim
-        int dimAlpha = (int) (currentAlpha * 0x85);
-        graphics.fill(0, 0, this.width, this.height, dimAlpha << 24);
+        // 2. Subtle soft backdrop dim (only ~13% tint instead of pitch black)
+        int dimAlpha = (int) (currentAlpha * 0x22);
+        if (dimAlpha > 0) {
+            graphics.fill(0, 0, this.width, this.height, dimAlpha << 24);
+        }
 
         float winX = (this.width - WIN_WIDTH) / 2.0f;
         float winY = (this.height - WIN_HEIGHT) / 2.0f;
@@ -128,13 +125,14 @@ public class ClickGuiScreen extends Screen {
         // 3. Fluid Spring Scale
         graphics.pose().pushPose();
         graphics.pose().translate(centerX, centerY, 0.0f);
-        float scale = 0.90f + 0.10f * animProgress;
+        float scale = 0.92f + 0.08f * animProgress;
         graphics.pose().scale(scale, scale, 1.0f);
         graphics.pose().translate(-centerX, -centerY, 0.0f);
 
-        // 4. Main Obsidian Background Panel (Wayne DLC layout)
+        // 4. Main Obsidian Background Panel (#0D0D12, 16px radius)
         int mainBg = applyAlpha(0xFF0D0D12, currentAlpha);
         GlassRenderUtil.fillRoundedRect(graphics, winX, winY, WIN_WIDTH, WIN_HEIGHT, 16.0f, mainBg);
+        GlassRenderUtil.drawRoundedOutline(graphics, (int) winX, (int) winY, (int) WIN_WIDTH, (int) WIN_HEIGHT, 16, 0.8f, applyAlpha(0xFF1A1A22, currentAlpha));
 
         // Update module animations
         for (Module m : ModuleManager.getInstance().getModules()) {
@@ -149,7 +147,7 @@ public class ClickGuiScreen extends Screen {
         float mainW = (winX + WIN_WIDTH) - mainX - 14.0f;
         renderTopBar(graphics, mainX, winY, mainW, mouseX, mouseY, dt, currentAlpha);
 
-        // 7. Content Area: 2-Column Cards Grid
+        // 7. Content Area: 2-Column Cards Grid (with proper non-scaled scissor)
         renderContent(graphics, mainX, winY + 38.0f, mainW, WIN_HEIGHT - 48.0f, mouseX, mouseY, dt, currentAlpha);
 
         // 8. Floating Color Picker Popup (if open)
@@ -171,33 +169,30 @@ public class ClickGuiScreen extends Screen {
         float iconSize = 28.0f;
         GlassRenderUtil.fillGradientRoundedRect(graphics, iconX, iconY, iconSize, iconSize, 8.0f, applyAlpha(0xFF7C3AED, alpha), applyAlpha(0xFFA855F7, alpha));
 
-        // White stylized glyph inside squircle
-        GlassRenderUtil.fillRoundedRect(graphics, iconX + 7.0f, iconY + 8.0f, 4.0f, 12.0f, 2.0f, applyAlpha(0xFFFFFFFF, alpha));
-        GlassRenderUtil.fillRoundedRect(graphics, iconX + 17.0f, iconY + 8.0f, 4.0f, 12.0f, 2.0f, applyAlpha(0xFFFFFFFF, alpha));
-        GlassRenderUtil.fillRoundedRect(graphics, iconX + 7.0f, iconY + 16.0f, 14.0f, 4.0f, 2.0f, applyAlpha(0xFFFFFFFF, alpha));
+        // Stylized 'V' glyph inside squircle
+        GlassRenderUtil.fillRoundedRect(graphics, iconX + 7.0f, iconY + 8.0f, 4.0f, 10.0f, 2.0f, applyAlpha(0xFFFFFFFF, alpha));
+        GlassRenderUtil.fillRoundedRect(graphics, iconX + 17.0f, iconY + 8.0f, 4.0f, 10.0f, 2.0f, applyAlpha(0xFFFFFFFF, alpha));
+        GlassRenderUtil.fillRoundedRect(graphics, iconX + 7.0f, iconY + 15.0f, 14.0f, 4.0f, 2.0f, applyAlpha(0xFFFFFFFF, alpha));
 
-        // App Branding Text
-        MsdfRenderer.renderText(Fonts.bold(), "Wayne DLC", 10.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), x + 48.0f, winY + 15.0f, 0.0f);
-        MsdfRenderer.renderText(Fonts.regular(), "Recode", 7.0f, applyAlpha(0xFF6B7280, alpha), graphics.pose().last().pose(), x + 48.0f, winY + 28.5f, 0.0f);
+        // Branding: "VisiumClient" & "beta"
+        MsdfRenderer.renderText(Fonts.bold(), "VisiumClient", 10.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), x + 48.0f, winY + 15.0f, 0.0f);
+        MsdfRenderer.renderText(Fonts.regular(), "beta", 7.0f, applyAlpha(0xFF6B7280, alpha), graphics.pose().last().pose(), x + 48.0f, winY + 28.5f, 0.0f);
 
         float curY = winY + 52.0f;
 
-        // Group 1: MAIN
+        // Group 1: MAIN (Categories with client textures)
         curY = renderNavSection(graphics, "Main", curY, x, w, mouseX, mouseY, dt, alpha,
-                new String[]{"Combat", "Movement", "Player", "Visuals"},
-                new Category[]{Category.COMBAT, Category.MOVEMENT, Category.PLAYER, Category.RENDER}
+                new String[]{"Combat", "Movement", "Player", "Visuals"}
         );
 
-        // Group 2: CLIENT
+        // Group 2: CLIENT (Empty icons)
         curY = renderNavSection(graphics, "Client", curY + 6.0f, x, w, mouseX, mouseY, dt, alpha,
-                new String[]{"Themes", "Configs"},
-                new Category[]{null, null}
+                new String[]{"Themes", "Configs"}
         );
 
-        // Group 3: OTHER
+        // Group 3: OTHER (Empty icons)
         curY = renderNavSection(graphics, "Other", curY + 6.0f, x, w, mouseX, mouseY, dt, alpha,
-                new String[]{"Favorites", "Friends"},
-                new Category[]{null, null}
+                new String[]{"Favorites", "Friends"}
         );
 
         // Bottom User Profile Card
@@ -210,9 +205,8 @@ public class ClickGuiScreen extends Screen {
         GlassRenderUtil.fillGradientRoundedRect(graphics, avatarX, avatarY, avatarSize, avatarSize, avatarSize / 2.0f, applyAlpha(0xFF0284C7, alpha), applyAlpha(0xFF6366F1, alpha));
         GlassRenderUtil.drawRoundedOutline(graphics, (int) avatarX, (int) avatarY, (int) avatarSize, (int) avatarSize, (int) (avatarSize / 2.0f), 1.0f, applyAlpha(0xFF38BDF8, alpha));
 
-        // Inner initial
-        String username = Minecraft.getInstance().player != null ? Minecraft.getInstance().player.getGameProfile().getName() : System.getProperty("user.name", "Username_1");
-        String initial = username.isEmpty() ? "U" : username.substring(0, 1).toUpperCase();
+        String username = Minecraft.getInstance().player != null ? Minecraft.getInstance().player.getGameProfile().getName() : System.getProperty("user.name", "Player");
+        String initial = username.isEmpty() ? "P" : username.substring(0, 1).toUpperCase();
         MsdfRenderer.renderCenteredText(Fonts.bold(), initial, 11.0f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), avatarX + avatarSize / 2.0f, avatarY + 7.0f, 0.0f);
 
         // Username & Expiry date
@@ -229,17 +223,14 @@ public class ClickGuiScreen extends Screen {
         GlassRenderUtil.fillRoundedRect(graphics, divX, winY + 10.0f, 1.0f, WIN_HEIGHT - 20.0f, 0.5f, applyAlpha(0xFF181820, alpha));
     }
 
-    private float renderNavSection(GuiGraphics graphics, String header, float startY, float x, float w, int mouseX, int mouseY, float dt, float alpha, String[] items, Category[] categories) {
-        // Section Header Label
+    private float renderNavSection(GuiGraphics graphics, String header, float startY, float x, float w, int mouseX, int mouseY, float dt, float alpha, String[] items) {
         MsdfRenderer.renderText(Fonts.medium(), header, 6.5f, applyAlpha(0xFF6B7280, alpha), graphics.pose().last().pose(), x + 16.0f, startY, 0.0f);
         float itemY = startY + 11.0f;
         float itemH = 22.0f;
         float itemW = w - 24.0f;
         float itemX = x + 12.0f;
 
-        for (int i = 0; i < items.length; i++) {
-            String name = items[i];
-            Category cat = categories[i];
+        for (String name : items) {
             boolean selected = selectedSubTab.equalsIgnoreCase(name);
             boolean hovered = mouseX >= itemX && mouseX <= itemX + itemW && mouseY >= itemY && mouseY <= itemY + itemH;
 
@@ -248,20 +239,24 @@ public class ClickGuiScreen extends Screen {
             tabHoverMap.put(name, hover);
 
             if (selected) {
-                // Active container pill card matching Wayne DLC screenshot
                 GlassRenderUtil.fillRoundedRect(graphics, itemX, itemY, itemW, itemH, 6.0f, applyAlpha(0xFF181822, alpha));
                 GlassRenderUtil.drawRoundedOutline(graphics, (int) itemX, (int) itemY, (int) itemW, (int) itemH, 6, 0.6f, applyAlpha(0xFF282836, alpha));
             } else if (hover > 0.01f) {
                 GlassRenderUtil.fillRoundedRect(graphics, itemX, itemY, itemW, itemH, 6.0f, applyAlpha(0xFF121218, alpha * hover));
             }
 
-            // Category Icon glyph
-            int iconColor = selected ? 0xFFA78BFA : (hovered ? 0xFFCBD5E1 : 0xFF6B7280);
-            renderNavIcon(graphics, name, itemX + 8.0f, itemY + (itemH - 8.0f) / 2.0f, applyAlpha(iconColor, alpha));
-
-            // Category Title text
+            ResourceLocation iconLoc = getCategoryIcon(name);
             int textColor = selected ? 0xFFFFFFFF : (hovered ? 0xFFE2E8F0 : 0xFF9CA3AF);
-            MsdfRenderer.renderText(Fonts.medium(), name, 7.8f, applyAlpha(textColor, alpha), graphics.pose().last().pose(), itemX + 22.0f, itemY + (itemH - 7.8f * 0.72f) / 2.0f, 0.0f);
+            int iconColor = selected ? 0xFFA78BFA : (hovered ? 0xFFCBD5E1 : 0xFF6B7280);
+
+            if (iconLoc != null) {
+                // Use client's real category texture
+                drawTintedIcon(graphics, iconLoc, itemX + 8.0f, itemY + (itemH - 12.0f) / 2.0f, 12.0f, applyAlpha(iconColor, alpha));
+                MsdfRenderer.renderText(Fonts.medium(), name, 7.8f, applyAlpha(textColor, alpha), graphics.pose().last().pose(), itemX + 25.0f, itemY + (itemH - 7.8f * 0.72f) / 2.0f, 0.0f);
+            } else {
+                // Empty icon (zostaw puste) - align text cleanly
+                MsdfRenderer.renderText(Fonts.medium(), name, 7.8f, applyAlpha(textColor, alpha), graphics.pose().last().pose(), itemX + 12.0f, itemY + (itemH - 7.8f * 0.72f) / 2.0f, 0.0f);
+            }
 
             itemY += itemH + 2.0f;
         }
@@ -269,38 +264,34 @@ public class ClickGuiScreen extends Screen {
         return itemY;
     }
 
-    private void renderNavIcon(GuiGraphics graphics, String name, float x, float y, int color) {
-        switch (name.toLowerCase()) {
-            case "combat" -> {
-                // Crossed swords
-                GlassRenderUtil.fillRoundedRect(graphics, x, y, 7.0f, 1.2f, 0.6f, color);
-                GlassRenderUtil.fillRoundedRect(graphics, x, y + 6.0f, 7.0f, 1.2f, 0.6f, color);
-                GlassRenderUtil.fillRoundedRect(graphics, x + 3.0f, y - 1.0f, 1.2f, 9.0f, 0.6f, color);
-            }
-            case "movement" -> {
-                // Compass / 4-way arrow
-                GlassRenderUtil.fillRoundedRect(graphics, x + 3.0f, y, 1.5f, 7.5f, 0.7f, color);
-                GlassRenderUtil.fillRoundedRect(graphics, x, y + 3.0f, 7.5f, 1.5f, 0.7f, color);
-            }
-            case "player" -> {
-                // Person head and torso
-                GlassRenderUtil.fillRoundedRect(graphics, x + 2.0f, y, 3.5f, 3.5f, 1.75f, color);
-                GlassRenderUtil.fillRoundedRect(graphics, x, y + 4.5f, 7.5f, 3.0f, 1.0f, color);
-            }
-            case "visuals" -> {
-                // Eye / diamond
-                GlassRenderUtil.fillRoundedRect(graphics, x + 1.0f, y + 2.0f, 6.0f, 4.0f, 2.0f, color);
-                GlassRenderUtil.fillRoundedRect(graphics, x + 3.0f, y + 3.0f, 2.0f, 2.0f, 1.0f, 0xFF0D0D12);
-            }
-            case "themes" -> {
-                // Palette
-                GlassRenderUtil.fillRoundedRect(graphics, x, y, 7.5f, 7.5f, 3.5f, color);
-            }
-            default -> {
-                // Dot / bullet
-                GlassRenderUtil.fillRoundedRect(graphics, x + 2.0f, y + 2.0f, 3.5f, 3.5f, 1.75f, color);
-            }
-        }
+    private ResourceLocation getCategoryIcon(String name) {
+        return switch (name.toLowerCase()) {
+            case "combat" -> Category.COMBAT.getIconLocation();
+            case "movement" -> Category.MOVEMENT.getIconLocation();
+            case "player" -> Category.PLAYER.getIconLocation();
+            case "visuals" -> Category.RENDER.getIconLocation();
+            default -> null; // Themes, Configs, Favorites, Friends stay empty
+        };
+    }
+
+    private void drawTintedIcon(GuiGraphics graphics, ResourceLocation loc, float x, float y, float size, int color) {
+        if (loc == null) return;
+        try {
+            Minecraft.getInstance().getTextureManager().getTexture(loc).setFilter(true, false);
+        } catch (Exception ignored) {}
+        graphics.blit(
+                RenderType::guiTextured,
+                loc,
+                (int) x,
+                (int) y,
+                0.0f,
+                0.0f,
+                (int) size,
+                (int) size,
+                128,
+                128,
+                color
+        );
     }
 
     private void drawSpinnerRing(GuiGraphics graphics, float cx, float cy, float radius, int color) {
@@ -326,11 +317,14 @@ public class ClickGuiScreen extends Screen {
         // Arrow →
         MsdfRenderer.renderText(Fonts.bold(), "→", 7.5f, applyAlpha(0xFF4B5563, alpha), graphics.pose().last().pose(), mainX + 46.0f, barY + 2.0f, 0.0f);
 
-        // Crossed swords icon for active category
-        renderNavIcon(graphics, selectedSubTab, mainX + 57.0f, barY + 1.5f, applyAlpha(0xFFA78BFA, alpha));
-
-        // Category Name (bold white)
-        MsdfRenderer.renderText(Fonts.bold(), selectedSubTab, 7.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), mainX + 68.0f, barY + 2.0f, 0.0f);
+        // Category icon if present
+        ResourceLocation catIcon = getCategoryIcon(selectedSubTab);
+        if (catIcon != null) {
+            drawTintedIcon(graphics, catIcon, mainX + 57.0f, barY + 0.5f, 10.0f, applyAlpha(0xFFA78BFA, alpha));
+            MsdfRenderer.renderText(Fonts.bold(), selectedSubTab, 7.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), mainX + 71.0f, barY + 2.0f, 0.0f);
+        } else {
+            MsdfRenderer.renderText(Fonts.bold(), selectedSubTab, 7.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), mainX + 57.0f, barY + 2.0f, 0.0f);
+        }
 
         // Search Bar (Right aligned)
         float searchW = 120.0f;
@@ -355,28 +349,7 @@ public class ClickGuiScreen extends Screen {
     }
 
     private void renderContent(GuiGraphics graphics, float mainX, float contentY, float mainW, float contentH, int mouseX, int mouseY, float dt, float alpha) {
-        // Filter modules by category or search query
-        List<Module> visibleModules;
-        if (!searchQuery.isEmpty()) {
-            String q = searchQuery.toLowerCase();
-            visibleModules = ModuleManager.getInstance().getModules().stream()
-                    .filter(m -> m.getName().toLowerCase().contains(q) || m.getDescription().toLowerCase().contains(q))
-                    .collect(Collectors.toList());
-        } else {
-            Category targetCategory = switch (selectedSubTab.toLowerCase()) {
-                case "combat" -> Category.COMBAT;
-                case "movement" -> Category.MOVEMENT;
-                case "player" -> Category.PLAYER;
-                case "visuals" -> Category.RENDER;
-                default -> null;
-            };
-
-            if (targetCategory != null) {
-                visibleModules = ModuleManager.getInstance().getModulesByCategory(targetCategory);
-            } else {
-                visibleModules = ModuleManager.getInstance().getModulesByCategory(Category.HUD);
-            }
-        }
+        List<Module> visibleModules = getVisibleModules();
 
         // 2-Column Grid Dimensions
         float colGap = 12.0f;
@@ -384,14 +357,8 @@ public class ClickGuiScreen extends Screen {
         float col1X = mainX;
         float col2X = mainX + colW + colGap;
 
-        // Scissor clip for smooth scrolling
-        int scaleFactor = (int) Minecraft.getInstance().getWindow().getGuiScale();
-        int scissorX = (int) (mainX * scaleFactor);
-        int scissorY = (int) ((this.height - (contentY + contentH)) * scaleFactor);
-        int scissorW = (int) (mainW * scaleFactor);
-        int scissorH = (int) (contentH * scaleFactor);
-
-        graphics.enableScissor(scissorX, scissorY, scissorX + scissorW, scissorY + scissorH);
+        // FIXED: Minecraft 1.21.4 enableScissor expects GUI coordinates directly, not multiplied by scaleFactor!
+        graphics.enableScissor((int) mainX, (int) contentY, (int) (mainX + mainW), (int) (contentY + contentH));
 
         float col1Y = contentY + scrollY;
         float col2Y = contentY + scrollY;
@@ -430,8 +397,7 @@ public class ClickGuiScreen extends Screen {
         for (Setting<?> s : module.getSettings()) {
             settingsH += 21.0f;
         }
-        // Include keybind setting row if expanded
-        settingsH += 21.0f;
+        settingsH += 21.0f; // Keybind setting row
 
         return baseH + settingsH * module.getExpandProgress();
     }
@@ -454,7 +420,7 @@ public class ClickGuiScreen extends Screen {
         MsdfRenderer.renderCenteredText(Fonts.bold(), keyText, 7.5f, applyAlpha(keyColor, alpha), graphics.pose().last().pose(), badgeX + badgeSize / 2.0f, badgeY + 5.0f, 0.0f);
 
         // 2. Module Name (bold white)
-        MsdfRenderer.renderText(Fonts.bold(), module.getName(), 8.8f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), x + 34.0f, y + 13.0f, 0.0f);
+        MsdfRenderer.renderText(Fonts.bold(), module.getName(), 8.8f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), x + 34.0f, y + 13.5f, 0.0f);
 
         // 3. Settings Gear Icon
         float gearX = x + w - 46.0f;
@@ -468,7 +434,7 @@ public class ClickGuiScreen extends Screen {
         int gearColor = GlassRenderUtil.lerpColor(0xFF6B7280, 0xFFA78BFA, gearHover);
         drawGearIcon(graphics, gearX + 6.0f, gearY + 6.0f, 5.0f, applyAlpha(gearColor, alpha));
 
-        // 4. iOS Toggle Switch (Purple #8B5CF6 when ON, Dark Gray #262630 when OFF)
+        // 4. iOS Toggle Switch
         float switchW = 24.0f;
         float switchH = 13.0f;
         float switchX = x + w - 28.0f;
@@ -481,7 +447,6 @@ public class ClickGuiScreen extends Screen {
         int trackColor = GlassRenderUtil.lerpColor(0xFF262630, 0xFF8B5CF6, toggleProg);
         GlassRenderUtil.fillRoundedRect(graphics, switchX, switchY, switchW, switchH, 6.5f, applyAlpha(trackColor, alpha));
 
-        // Switch circular thumb (animates smoothly between left and right)
         float thumbSize = 9.0f;
         float thumbX = switchX + 2.0f + toggleProg * (switchW - thumbSize - 4.0f);
         float thumbY = switchY + (switchH - thumbSize) / 2.0f;
@@ -493,11 +458,9 @@ public class ClickGuiScreen extends Screen {
             float setAlpha = alpha * module.getExpandProgress();
             float settingY = y + 34.0f;
 
-            // Thin subtle divider line
             GlassRenderUtil.fillRoundedRect(graphics, x + 10.0f, settingY, w - 20.0f, 1.0f, 0.5f, applyAlpha(0xFF1E1E26, setAlpha));
             settingY += 5.0f;
 
-            // Render all settings
             for (Setting<?> setting : module.getSettings()) {
                 if (setting instanceof NumberSetting num) {
                     renderSliderSetting(graphics, num, x, settingY, w, mouseX, mouseY, dt, setAlpha);
@@ -511,44 +474,36 @@ public class ClickGuiScreen extends Screen {
                 settingY += 21.0f;
             }
 
-            // Keybind Row inside drawer
             renderKeybindSettingRow(graphics, module, x, settingY, w, mouseX, mouseY, dt, setAlpha);
         }
     }
 
     private void renderSliderSetting(GuiGraphics graphics, NumberSetting slider, float x, float y, float w, int mouseX, int mouseY, float dt, float alpha) {
-        // Label on left
         MsdfRenderer.renderText(Fonts.medium(), slider.getName(), 7.0f, applyAlpha(0xFF9CA3AF, alpha), graphics.pose().last().pose(), x + 12.0f, y + 6.0f, 0.0f);
 
-        // Value text on far right (e.g. "4.5" in purple #9372FF)
         String valStr = String.format("%.1f", slider.getValue());
         if (slider.getStep() >= 1.0) {
             valStr = String.format("%d", slider.getValue().intValue());
         }
         MsdfRenderer.renderText(Fonts.bold(), valStr, 7.0f, applyAlpha(0xFF9372FF, alpha), graphics.pose().last().pose(), x + w - 24.0f, y + 6.0f, 0.0f);
 
-        // Slider track
         float trackW = 50.0f;
         float trackH = 4.0f;
         float trackX = x + w - 82.0f;
         float trackY = y + 8.5f;
 
-        // Background track
         GlassRenderUtil.fillRoundedRect(graphics, trackX, trackY, trackW, trackH, 2.0f, applyAlpha(0xFF22222A, alpha));
 
-        // Active purple fill
         float progress = slider.getSliderProgress();
         float fillW = Math.max(4.0f, trackW * progress);
         GlassRenderUtil.fillGradientRoundedRect(graphics, trackX, trackY, fillW, trackH, 2.0f, applyAlpha(0xFF8B5CF6, alpha), applyAlpha(0xFFA78BFA, alpha));
 
-        // Pill thumb
         float thumbW = 7.0f;
         float thumbH = 6.0f;
         float thumbX = trackX + progress * (trackW - thumbW);
         float thumbY = trackY + (trackH - thumbH) / 2.0f;
         GlassRenderUtil.fillRoundedRect(graphics, thumbX, thumbY, thumbW, thumbH, 3.0f, applyAlpha(0xFFFFFFFF, alpha));
 
-        // Dragging handling
         if (draggingSlider == slider) {
             float mouseP = (mouseX - trackX) / trackW;
             slider.setFromProgress(mouseP);
@@ -556,10 +511,8 @@ public class ClickGuiScreen extends Screen {
     }
 
     private void renderModeSetting(GuiGraphics graphics, ModeSetting mode, float x, float y, float w, int mouseX, int mouseY, float dt, float alpha) {
-        // Label on left
         MsdfRenderer.renderText(Fonts.medium(), mode.getName(), 7.0f, applyAlpha(0xFF9CA3AF, alpha), graphics.pose().last().pose(), x + 12.0f, y + 6.0f, 0.0f);
 
-        // Dropdown pill on right (e.g. "Mode1 , Mode2 ↕")
         String text = mode.getValue() + " ↕";
         float textW = Fonts.medium().getWidth(text, 6.8f);
         float pillW = Math.max(54.0f, textW + 12.0f);
@@ -575,10 +528,8 @@ public class ClickGuiScreen extends Screen {
     }
 
     private void renderCheckboxSetting(GuiGraphics graphics, BooleanSetting bool, float x, float y, float w, int mouseX, int mouseY, float dt, float alpha) {
-        // Label on left
         MsdfRenderer.renderText(Fonts.medium(), bool.getName(), 7.0f, applyAlpha(0xFF9CA3AF, alpha), graphics.pose().last().pose(), x + 12.0f, y + 6.0f, 0.0f);
 
-        // Mini iOS toggle switch on right
         float switchW = 20.0f;
         float switchH = 11.0f;
         float switchX = x + w - switchW - 10.0f;
@@ -600,7 +551,6 @@ public class ClickGuiScreen extends Screen {
     private void renderColorSettingRow(GuiGraphics graphics, ColorSetting col, float x, float y, float w, int mouseX, int mouseY, float dt, float alpha) {
         MsdfRenderer.renderText(Fonts.medium(), col.getName(), 7.0f, applyAlpha(0xFF9CA3AF, alpha), graphics.pose().last().pose(), x + 12.0f, y + 6.0f, 0.0f);
 
-        // Hex pill badge (e.g. #9372FF)
         float pillW = 44.0f;
         float pillH = 15.0f;
         float pillX = x + w - pillW - 10.0f;
@@ -637,15 +587,12 @@ public class ClickGuiScreen extends Screen {
         float cpX = colorPickerX;
         float cpY = colorPickerY;
 
-        // Keep inside screen
         cpX = Math.max(10.0f, Math.min(this.width - cpW - 10.0f, cpX));
         cpY = Math.max(10.0f, Math.min(this.height - cpH - 10.0f, cpY));
 
-        // Floating Card Container (#131317, 14px radius, sleek border)
         GlassRenderUtil.fillRoundedRect(graphics, cpX, cpY, cpW, cpH, 14.0f, applyAlpha(0xFF131317, alpha));
         GlassRenderUtil.drawRoundedOutline(graphics, (int) cpX, (int) cpY, (int) cpW, (int) cpH, 14, 0.8f, applyAlpha(0xFF282836, alpha));
 
-        // 1. Saturation / Value Gradient Box
         float svX = cpX + 10.0f;
         float svY = cpY + 10.0f;
         float svW = cpW - 20.0f;
@@ -653,38 +600,29 @@ public class ClickGuiScreen extends Screen {
 
         int baseHueColor = Color.HSBtoRGB(pickerHue, 1.0f, 1.0f);
         GlassRenderUtil.fillRoundedRect(graphics, svX, svY, svW, svH, 8.0f, applyAlpha(baseHueColor, alpha));
-
-        // Horizontal white fade (saturation) + vertical black fade (brightness)
         GlassRenderUtil.fillGradientRoundedRect(graphics, svX, svY, svW, svH, 8.0f, applyAlpha(0x00FFFFFF, 0.0f), applyAlpha(0xFF000000, alpha));
 
-        // Picker Ring Thumb
         float thumbX = svX + pickerSat * svW;
         float thumbY = svY + (1.0f - pickerVal) * svH;
         GlassRenderUtil.fillRoundedRect(graphics, thumbX - 3.5f, thumbY - 3.5f, 7.0f, 7.0f, 3.5f, applyAlpha(0xFFFFFFFF, alpha));
         GlassRenderUtil.fillRoundedRect(graphics, thumbX - 2.0f, thumbY - 2.0f, 4.0f, 4.0f, 2.0f, applyAlpha(activeColorPickerSetting.getValue(), alpha));
 
-        // 2. Hue Rainbow Slider Bar
         float hueX = cpX + 10.0f;
         float hueY = cpY + 112.0f;
         float hueW = cpW - 20.0f;
         float hueH = 8.0f;
 
-        // Draw segmented rainbow bar
         int segments = 12;
         float segW = hueW / segments;
         for (int i = 0; i < segments; i++) {
             float h1 = (float) i / segments;
-            float h2 = (float) (i + 1) / segments;
             int c1 = Color.HSBtoRGB(h1, 1.0f, 1.0f);
-            int c2 = Color.HSBtoRGB(h2, 1.0f, 1.0f);
             GlassRenderUtil.fillRoundedRect(graphics, hueX + i * segW, hueY, segW + 0.5f, hueH, 4.0f, applyAlpha(c1, alpha));
         }
 
-        // Hue Ring Thumb
         float hueThumbX = hueX + pickerHue * hueW;
         GlassRenderUtil.fillRoundedRect(graphics, hueThumbX - 3.0f, hueY - 1.0f, 6.0f, 10.0f, 3.0f, applyAlpha(0xFFFFFFFF, alpha));
 
-        // Interactive dragging
         if (isDraggingSV) {
             pickerSat = Math.max(0.0f, Math.min(1.0f, (mouseX - svX) / svW));
             pickerVal = Math.max(0.0f, Math.min(1.0f, 1.0f - (mouseY - svY) / svH));
@@ -760,7 +698,6 @@ public class ClickGuiScreen extends Screen {
         float itemX = winX + 12.0f;
         float itemH = 22.0f;
 
-        // Check group 1
         float g1Y = curY + 11.0f;
         for (int i = 0; i < 4; i++) {
             if (mouseX >= itemX && mouseX <= itemX + itemW && mouseY >= g1Y && mouseY <= g1Y + itemH) {
@@ -773,7 +710,6 @@ public class ClickGuiScreen extends Screen {
             g1Y += itemH + 2.0f;
         }
 
-        // Check group 2
         float g2Y = g1Y + 17.0f;
         for (int i = 4; i < 6; i++) {
             if (mouseX >= itemX && mouseX <= itemX + itemW && mouseY >= g2Y && mouseY <= g2Y + itemH) {
@@ -786,7 +722,6 @@ public class ClickGuiScreen extends Screen {
             g2Y += itemH + 2.0f;
         }
 
-        // Check group 3
         float g3Y = g2Y + 17.0f;
         for (int i = 6; i < 8; i++) {
             if (mouseX >= itemX && mouseX <= itemX + itemW && mouseY >= g3Y && mouseY <= g3Y + itemH) {
@@ -832,18 +767,14 @@ public class ClickGuiScreen extends Screen {
             float cardY = useCol1 ? col1Y : col2Y;
             float cardH = calculateCardHeight(module);
 
-            // Click inside card
             if (mouseX >= cardX && mouseX <= cardX + colW && mouseY >= cardY && mouseY <= cardY + cardH) {
-                // Header interactions (height 34)
                 if (mouseY <= cardY + 34.0f) {
-                    // Keybind badge click
                     if (mouseX >= cardX + 10.0f && mouseX <= cardX + 28.0f) {
                         bindingModule = (bindingModule == module) ? null : module;
                         playClick(1.1f);
                         return true;
                     }
 
-                    // Gear icon click
                     float gearX = cardX + colW - 46.0f;
                     if (mouseX >= gearX - 3.0f && mouseX <= gearX + 15.0f) {
                         module.setExpanded(!module.isExpanded());
@@ -851,18 +782,15 @@ public class ClickGuiScreen extends Screen {
                         return true;
                     }
 
-                    // Toggle switch click
                     float switchX = cardX + colW - 28.0f;
                     if (mouseX >= switchX - 2.0f && mouseX <= switchX + 26.0f) {
                         module.toggle();
                         return true;
                     }
 
-                    // Clicking card title also toggles
                     module.toggle();
                     return true;
                 } else if (module.isExpanded()) {
-                    // Settings Drawer interactions
                     float setY = cardY + 39.0f;
                     for (Setting<?> setting : module.getSettings()) {
                         if (mouseY >= setY && mouseY <= setY + 21.0f) {
@@ -899,7 +827,6 @@ public class ClickGuiScreen extends Screen {
                         setY += 21.0f;
                     }
 
-                    // Keybind row click
                     if (mouseY >= setY && mouseY <= setY + 21.0f) {
                         bindingModule = (bindingModule == module) ? null : module;
                         playClick(1.1f);
