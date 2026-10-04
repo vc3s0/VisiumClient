@@ -1,0 +1,38 @@
+{
+  "toggle": {
+    "category": "master",
+    "sounds": [
+      "cweldlc:toggle"
+    ]
+  },
+  "typing": {
+    "category": "master",
+    "sounds": [
+      "cweldlc:typing"
+    ]
+  },
+  "critical": {
+    "category": "master",
+    "sounds": [
+      "cweldlc:critical"
+    ]
+  },
+  "welcome": {
+    "category": "master",
+    "sounds": [
+      "cweldlc:welcome"
+    ]
+  },
+  "applepay": {
+    "category": "master",
+    "sounds": [
+      "cweldlc:applepay"
+    ]
+  },
+  "clickgui_open": {
+    "category": "master",
+    "sounds": [
+      "cweldlc:clickgui_open"
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+{
+	"required": true,
+	"package": "dev.cweldlc.client.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"FontTextureMixin",
+		"FramerateLimitTrackerMixin",
+		"GameRendererMixin",
+		"KeyboardHandlerMixin",
+		"MinecraftAccessor",
+		"MinecraftMixin",
+		"TitleScreenMixin",
+		"ChatScreenMixin",
+		"SuggestionsListMixin",
+		"CommandSuggestionsMixin",
+		"ChatComponentMixin",
+		"EditBoxAccessor",
+		"ClientPacketListenerMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

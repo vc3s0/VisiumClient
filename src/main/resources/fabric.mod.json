@@ -1,0 +1,37 @@
+{
+	"schemaVersion": 1,
+	"id": "cweldlc",
+	"version": "${version}",
+	"name": "VisiumClient",
+	"description": "VisiumClient Minecraft 1.21.4 Client with LiquidGlass / Glassmorphic UI.",
+	"authors": [
+		"VisiumClient Team"
+	],
+	"contact": {
+		"homepage": "https://visiumclient.dev"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/cweldlc/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"dev.cweldlc.CwelDLC"
+		],
+		"client": [
+			"dev.cweldlc.client.CwelDLCClient"
+		]
+	},
+	"mixins": [
+		"cweldlc.mixins.json",
+		{
+			"config": "cweldlc.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~1.21.4",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
