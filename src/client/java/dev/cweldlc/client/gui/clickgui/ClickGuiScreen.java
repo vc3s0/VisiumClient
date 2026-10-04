@@ -63,6 +63,7 @@ public class ClickGuiScreen extends Screen {
     // Search
     private String searchQuery = "";
     private boolean searchFocused = false;
+    private static final ResourceLocation SEARCH_ICON = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/category/search.png");
 
     // Animation maps
     private final Map<Module, Float> moduleToggleMap = new HashMap<>();
@@ -275,23 +276,26 @@ public class ClickGuiScreen extends Screen {
     }
 
     private void drawTintedIcon(GuiGraphics graphics, ResourceLocation loc, float x, float y, float size, int color) {
-        if (loc == null) return;
+        if (loc == null || size <= 0) return;
         try {
             Minecraft.getInstance().getTextureManager().getTexture(loc).setFilter(true, false);
         } catch (Exception ignored) {}
         graphics.blit(
                 RenderType::guiTextured,
                 loc,
-                (int) x,
-                (int) y,
+                Math.round(x),
+                Math.round(y),
                 0.0f,
                 0.0f,
-                (int) size,
-                (int) size,
+                Math.round(size),
+                Math.round(size),
+                128,
+                128,
                 128,
                 128,
                 color
         );
+        graphics.flush();
     }
 
     private void drawSpinnerRing(GuiGraphics graphics, float cx, float cy, float radius, int color) {
@@ -342,10 +346,9 @@ public class ClickGuiScreen extends Screen {
         MsdfRenderer.renderText(Fonts.regular(), displayText, 7.0f, applyAlpha(queryColor, alpha), graphics.pose().last().pose(), searchX + 10.0f, searchY + 6.0f, 0.0f);
 
         // Magnifying glass icon on right
-        float magX = searchX + searchW - 14.0f;
-        float magY = searchY + 6.0f;
-        GlassRenderUtil.fillRoundedRect(graphics, magX, magY, 5.0f, 5.0f, 2.5f, applyAlpha(0xFF6B7280, alpha));
-        GlassRenderUtil.fillRoundedRect(graphics, magX + 4.0f, magY + 4.0f, 3.5f, 1.2f, 0.6f, applyAlpha(0xFF6B7280, alpha));
+        float magX = searchX + searchW - 15.0f;
+        float magY = searchY + 5.0f;
+        drawTintedIcon(graphics, SEARCH_ICON, magX, magY, 10.0f, applyAlpha(searchFocused ? 0xFFA78BFA : 0xFF6B7280, alpha));
     }
 
     private void renderContent(GuiGraphics graphics, float mainX, float contentY, float mainW, float contentH, int mouseX, int mouseY, float dt, float alpha) {

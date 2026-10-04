@@ -191,6 +191,7 @@ public class GlassRenderUtil {
             RenderSystem.enableCull();
             RenderSystem.disableBlend();
             graphics.blit(net.minecraft.client.renderer.RenderType::guiTextured, texture, (int) x, (int) y, 0.0f, 0.0f, (int) width, (int) height, (int) width, (int) height);
+            graphics.flush();
             return;
         }
 
