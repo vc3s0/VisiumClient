@@ -91,7 +91,14 @@ public abstract class ChatComponentMixin {
                 int lineY = baseY - i * lineHeight;
                 int textY = lineY + spacingOffset;
 
+                // Smooth slide-in entrance animation for fresh messages
+                float entrance = Math.min(1.0f, (float) age / 6.0f);
+                float animOffset = (1.0f - entrance) * -12.0f;
+
                 boolean isHovered = focused && (lineIdx == hoveredLineIdx || lineIdx == hoveredEndIdx);
+
+                graphics.pose().pushPose();
+                graphics.pose().translate(animOffset, 0.0f, 0.0f);
 
                 // Render Apple LiquidGlass pill behind message line
                 float textWidth = Fonts.regular().getWidth(line.content(), 8.0f);
@@ -113,6 +120,8 @@ public abstract class ChatComponentMixin {
                 graphics.pose().pushPose();
                 graphics.pose().translate(0.0F, 0.0F, 50.0F);
                 MsdfRenderer.renderText(Fonts.regular(), line.content(), 8.0f, (textAlpha << 24) | 0x00FFFFFF, graphics.pose().last().pose(), 0.0f, textY + 1.0f, 0.0f);
+                graphics.pose().popPose();
+
                 graphics.pose().popPose();
             }
         }

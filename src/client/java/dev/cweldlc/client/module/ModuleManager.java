@@ -74,6 +74,7 @@ public class ModuleManager {
         modules.add(new WatermarkHudModule());
         modules.add(new MediaPlayerHudModule());
         modules.add(new DynamicIslandHudModule());
+        modules.add(new dev.cweldlc.client.module.impl.hud.HotbarHudModule());
     }
 
     public List<Module> getModules() {

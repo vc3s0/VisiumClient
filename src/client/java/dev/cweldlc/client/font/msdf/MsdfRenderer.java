@@ -66,7 +66,7 @@ public final class MsdfRenderer {
 
     public static void renderCenteredText(MsdfFont font, String text, float size, int color, Matrix4f matrix, float centerX, float y, float z) {
         float width = font.getWidth(text, size);
-        renderText(font, text, size, color, matrix, centerX - width / 2.0f, y, z);
+        renderText(font, text, size, color, matrix, centerX - width / 2.0f + 0.75f, y, z);
     }
 
     public static void renderText(MsdfFont font, String text, float size, int color, Matrix4f matrix, float x, float y, float z,

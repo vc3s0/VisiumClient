@@ -20,9 +20,16 @@ import net.minecraft.resources.ResourceLocation;
 
 public class CwelMainMenuScreen extends Screen {
 
-    private static final ResourceLocation BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(
-            CwelDLC.MOD_ID, "textures/gui/title/background.png"
-    );
+    private static final ResourceLocation[] BACKGROUNDS = {
+            ResourceLocation.fromNamespaceAndPath(CwelDLC.MOD_ID, "textures/gui/title/background.png"),
+            ResourceLocation.fromNamespaceAndPath(CwelDLC.MOD_ID, "textures/gui/title/background2.png"),
+            ResourceLocation.fromNamespaceAndPath(CwelDLC.MOD_ID, "textures/gui/title/background3.png")
+    };
+
+    private static int currentBgIndex = 0;
+    private static int previousBgIndex = 0;
+    private static float transitionProgress = 1.0f;
+    private static long lastTime = System.currentTimeMillis();
 
     private static final int TEX_WIDTH = 1920;
     private static final int TEX_HEIGHT = 1080;
@@ -108,22 +115,46 @@ public class CwelMainMenuScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
-        // 1. Draw custom background wallpaper covering full viewport
+        long now = System.currentTimeMillis();
+        float dt = Math.min(0.1f, (now - lastTime) / 1000.0f);
+        lastTime = now;
+
+        if (transitionProgress < 1.0f) {
+            transitionProgress = Math.min(1.0f, transitionProgress + dt * 2.5f);
+        }
+
+        // 1. Draw custom background wallpaper covering full viewport with smooth crossfade
         float scale = Math.max((float) this.width / TEX_WIDTH, (float) this.height / TEX_HEIGHT);
         int destW = (int) Math.ceil(TEX_WIDTH * scale);
         int destH = (int) Math.ceil(TEX_HEIGHT * scale);
         int destX = (this.width - destW) / 2;
         int destY = (this.height - destH) / 2;
 
-        graphics.blit(
-                RenderType::guiTextured,
-                BACKGROUND_TEXTURE,
-                destX, destY,
-                0.0f, 0.0f,
-                destW, destH,
-                TEX_WIDTH, TEX_HEIGHT,
-                TEX_WIDTH, TEX_HEIGHT
-        );
+        if (transitionProgress < 1.0f) {
+            // Draw previous background
+            graphics.blit(
+                    RenderType::guiTextured,
+                    BACKGROUNDS[previousBgIndex],
+                    destX, destY,
+                    0.0f, 0.0f,
+                    destW, destH,
+                    TEX_WIDTH, TEX_HEIGHT,
+                    TEX_WIDTH, TEX_HEIGHT
+            );
+            // Crossfade new background over previous
+            int fadeAlpha = (int) (transitionProgress * 255.0f);
+            GlassRenderUtil.drawRoundedTexture(graphics, BACKGROUNDS[currentBgIndex], destX, destY, destW, destH, 0.0f, (fadeAlpha << 24) | 0xFFFFFF);
+        } else {
+            graphics.blit(
+                    RenderType::guiTextured,
+                    BACKGROUNDS[currentBgIndex],
+                    destX, destY,
+                    0.0f, 0.0f,
+                    destW, destH,
+                    TEX_WIDTH, TEX_HEIGHT,
+                    TEX_WIDTH, TEX_HEIGHT
+            );
+        }
 
         // 2. Uniform clean background glass overlay (no dirty vertical gradient)
         graphics.fill(0, 0, this.width, this.height, ThemeManager.getOverlayColor());
@@ -147,8 +178,36 @@ public class CwelMainMenuScreen extends Screen {
         // 5. Render child widgets (buttons, Apple widgets)
         super.render(graphics, mouseX, mouseY, delta);
 
-        // 6. Footer metadata bar
+        // 6. Wallpaper Switcher Pill Widget (Top-Left under clock / bottom-left)
+        renderWallpaperSwitcher(graphics, mouseX, mouseY);
+
+        // 7. Footer metadata bar
         renderFooter(graphics);
+    }
+
+    private void renderWallpaperSwitcher(GuiGraphics graphics, int mouseX, int mouseY) {
+        float pillW = 68.0f;
+        float pillH = 22.0f;
+        float pillX = 18.0f;
+        float pillY = 16.0f;
+
+        boolean hovered = mouseX >= pillX && mouseX <= pillX + pillW && mouseY >= pillY && mouseY <= pillY + pillH;
+        int bgAlpha = hovered ? 0x90 : 0x60;
+        GlassRenderUtil.fillRoundedRect(graphics, pillX, pillY, pillW, pillH, 11.0f, (bgAlpha << 24) | 0x0C0C0C);
+        GlassRenderUtil.drawRoundedOutline(graphics, (int) pillX, (int) pillY, (int) pillW, (int) pillH, 11, 0.8f, (hovered ? 0x60 : 0x30) << 24 | 0xFFFFFF);
+
+        // 3 Indicator Dots
+        float startDotX = pillX + 14.0f;
+        float dotY = pillY + pillH / 2.0f;
+        for (int i = 0; i < BACKGROUNDS.length; i++) {
+            float dx = startDotX + i * 16.0f;
+            boolean active = (i == currentBgIndex);
+            if (active) {
+                GlassRenderUtil.fillRoundedRect(graphics, dx - 4.0f, dotY - 3.0f, 10.0f, 6.0f, 3.0f, 0xFFFFFFFF);
+            } else {
+                GlassRenderUtil.fillRoundedRect(graphics, dx - 2.5f, dotY - 2.5f, 5.0f, 5.0f, 2.5f, 0x55FFFFFF);
+            }
+        }
     }
 
     private void renderBranding(GuiGraphics graphics) {
@@ -209,6 +268,35 @@ public class CwelMainMenuScreen extends Screen {
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        float pillW = 68.0f;
+        float pillH = 22.0f;
+        float pillX = 18.0f;
+        float pillY = 16.0f;
+        if (button == 0 && mouseX >= pillX && mouseX <= pillX + pillW && mouseY >= pillY && mouseY <= pillY + pillH) {
+            float startDotX = pillX + 14.0f;
+            for (int i = 0; i < BACKGROUNDS.length; i++) {
+                float dx = startDotX + i * 16.0f;
+                if (Math.abs(mouseX - dx) <= 8.0f) {
+                    if (currentBgIndex != i) {
+                        previousBgIndex = currentBgIndex;
+                        currentBgIndex = i;
+                        transitionProgress = 0.0f;
+                        dev.cweldlc.client.util.ClientSounds.playToggle();
+                    }
+                    return true;
+                }
+            }
+            previousBgIndex = currentBgIndex;
+            currentBgIndex = (currentBgIndex + 1) % BACKGROUNDS.length;
+            transitionProgress = 0.0f;
+            dev.cweldlc.client.util.ClientSounds.playToggle();
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override

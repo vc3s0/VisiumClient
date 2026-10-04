@@ -29,11 +29,24 @@ public class MediaPlayerHudModule extends Module {
         MediaManager.getInstance().update(0.05f);
     }
 
+    private float animProgress = 0.0f;
+    private long lastRenderTime = System.currentTimeMillis();
+
     @Override
     public void onRender2D(GuiGraphics graphics, float delta) {
-        if (!isEnabled() || mc.options.hideGui) return;
+        long now = System.currentTimeMillis();
+        float dt = Math.min(0.05f, (now - lastRenderTime) / 1000.0f);
+        lastRenderTime = now;
 
         MediaManager media = MediaManager.getInstance();
+        boolean active = isEnabled() && (mc.options == null || !mc.options.hideGui) && media.isPlaying();
+        animProgress += ((active ? 1.0f : 0.0f) - animProgress) * (1.0f - (float) Math.exp(-dt * 16.0f));
+        if (animProgress <= 0.005f) return;
+
+        float slideY = (1.0f - animProgress) * 20.0f;
+        graphics.pose().pushPose();
+        graphics.pose().translate(0.0f, slideY, 0.0f);
+
         float targetProg = media.getProgress();
         float speed = Math.abs(targetProg - smoothHudProgress) > 0.08f ? 24.0f : 12.0f;
         smoothHudProgress += (targetProg - smoothHudProgress) * (1.0f - (float) Math.exp(-0.05f * speed));
@@ -138,7 +151,7 @@ public class MediaPlayerHudModule extends Module {
                 float bH = Math.max(2.5f, bars[i] * maxBarH);
                 float bX = specX + i * (barW + barSpacing);
                 float bY = specCenterY - bH / 2.0f;
-                int barColor = ThemeManager.lerpColor(0xFF3B82F6, 0xFF60A5FA, bars[i]);
+                int barColor = ThemeManager.lerpColor(0xFF71717A, 0xFFFFFFFF, bars[i]);
                 GlassRenderUtil.fillRoundedRect(graphics, bX, bY, barW, bH, 1.0f, barColor);
             }
         }
@@ -153,8 +166,10 @@ public class MediaPlayerHudModule extends Module {
 
             float fillW = trackW * Math.max(0.0f, Math.min(1.0f, smoothHudProgress));
             if (fillW > 1.0f) {
-                GlassRenderUtil.fillRoundedRect(graphics, trackX, trackY, fillW, trackH, 0.75f, 0xFF3B82F6);
+                GlassRenderUtil.fillRoundedRect(graphics, trackX, trackY, fillW, trackH, 0.75f, 0xFFFFFFFF);
             }
         }
+
+        graphics.pose().popPose();
     }
 }

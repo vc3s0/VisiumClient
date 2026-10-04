@@ -1,38 +1,54 @@
 {
   "toggle": {
     "category": "master",
-    "sounds": [
-      "cweldlc:toggle"
-    ]
+    "sounds": [ "cweldlc:toggle" ]
+  },
+  "enable": {
+    "category": "master",
+    "sounds": [ "cweldlc:enable", "cweldlc:enable2" ]
+  },
+  "disable": {
+    "category": "master",
+    "sounds": [ "cweldlc:disable", "cweldlc:disable2" ]
   },
   "typing": {
     "category": "master",
-    "sounds": [
-      "cweldlc:typing"
-    ]
+    "sounds": [ "cweldlc:typing" ]
   },
   "critical": {
     "category": "master",
-    "sounds": [
-      "cweldlc:critical"
-    ]
+    "sounds": [ "cweldlc:critical" ]
   },
   "welcome": {
     "category": "master",
-    "sounds": [
-      "cweldlc:welcome"
-    ]
+    "sounds": [ "cweldlc:welcome" ]
   },
   "applepay": {
     "category": "master",
-    "sounds": [
-      "cweldlc:applepay"
-    ]
+    "sounds": [ "cweldlc:applepay" ]
   },
   "clickgui_open": {
     "category": "master",
-    "sounds": [
-      "cweldlc:clickgui_open"
-    ]
+    "sounds": [ "cweldlc:clickgui_open" ]
+  },
+  "bonk": {
+    "category": "master",
+    "sounds": [ "cweldlc:bonk" ]
+  },
+  "metallic": {
+    "category": "master",
+    "sounds": [ "cweldlc:metallic", "cweldlc:metallic2" ]
+  },
+  "playerkill": {
+    "category": "master",
+    "sounds": [ "cweldlc:playerkill" ]
+  },
+  "error": {
+    "category": "master",
+    "sounds": [ "cweldlc:error" ]
+  },
+  "switch": {
+    "category": "master",
+    "sounds": [ "cweldlc:accountswitch" ]
   }
 }

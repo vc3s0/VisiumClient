@@ -16,7 +16,8 @@
 		"ChatComponentMixin",
 		"EditBoxAccessor",
 		"EditBoxMixin",
-		"ClientPacketListenerMixin"
+		"ClientPacketListenerMixin",
+		"GuiMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

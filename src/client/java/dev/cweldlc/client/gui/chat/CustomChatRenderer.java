@@ -53,7 +53,7 @@ public final class CustomChatRenderer {
         // Smooth outline glow when focused
         if (smoothInputFocus > 0.02f) {
             int glowAlpha = (int) (110 * smoothInputFocus);
-            int glowColor = (glowAlpha << 24) | 0x003B82F6;
+            int glowColor = (glowAlpha << 24) | 0x00FFFFFF;
             GlassRenderUtil.drawRoundedOutline(graphics, barX, barY, barW, barH, barR, 0.5f, glowColor);
         }
 
@@ -85,7 +85,7 @@ public final class CustomChatRenderer {
             if (selStart != selEnd) {
                 float selStartX = barX + 8.0f + Fonts.regular().getWidth(value.substring(0, selStart), 8.0f) - scrollX;
                 float selEndX = barX + 8.0f + Fonts.regular().getWidth(value.substring(0, selEnd), 8.0f) - scrollX;
-                GlassRenderUtil.fillRoundedRect(graphics, selStartX, barY + 2.5f, Math.max(2.0f, selEndX - selStartX), 11.0f, 2.0f, 0x553B82F6);
+                GlassRenderUtil.fillRoundedRect(graphics, selStartX, barY + 2.5f, Math.max(2.0f, selEndX - selStartX), 11.0f, 2.0f, 0x45FFFFFF);
             }
 
             MsdfRenderer.renderText(Fonts.regular(), value, 8.0f, 0xFFFFFFFF, graphics.pose().last().pose(), barX + 8.0f - scrollX, textY, 0.0f);
@@ -162,8 +162,8 @@ public final class CustomChatRenderer {
             } else {
                 smoothSuggestionY += (targetPillY - smoothSuggestionY) * (1.0f - (float) Math.exp(-0.05f * 20.0f));
             }
-            GlassRenderUtil.fillRoundedRect(graphics, cardX + pad, smoothSuggestionY, rowW, rowH, 4.0f, 0x453B82F6);
-            GlassRenderUtil.fillRoundedRect(graphics, cardX + pad + 2.0f, smoothSuggestionY + 2.5f, 2.0f, rowH - 5.0f, 1.0f, 0xFF3B82F6);
+            GlassRenderUtil.fillRoundedRect(graphics, cardX + pad, smoothSuggestionY, rowW, rowH, 4.0f, 0x30FFFFFF);
+            GlassRenderUtil.fillRoundedRect(graphics, cardX + pad + 2.0f, smoothSuggestionY + 2.5f, 2.0f, rowH - 5.0f, 1.0f, 0xFFFFFFFF);
         } else {
             smoothSuggestionY = -1.0f;
         }
@@ -212,7 +212,7 @@ public final class CustomChatRenderer {
             float thumbH = Math.max(12.0f, trackH * ((float) count / (float) suggestionList.size()));
             float thumbY = trackY + (trackH - thumbH) * scrollPct;
 
-            GlassRenderUtil.fillRoundedRect(graphics, trackX, thumbY, trackW, thumbH, 1.25f, 0x853B82F6);
+            GlassRenderUtil.fillRoundedRect(graphics, trackX, thumbY, trackW, thumbH, 1.25f, 0x80FFFFFF);
         }
 
         // 4. Tooltip Card for Selected Suggestion with MSDF font
@@ -314,6 +314,6 @@ public final class CustomChatRenderer {
 
         float thumbH = Math.max(10.0f, height * visibleRatio);
         float thumbY = y + (height - thumbH) * (1.0f - scrollPct);
-        GlassRenderUtil.fillRoundedRect(graphics, x, thumbY, trackW, thumbH, 1.25f, 0x853B82F6);
+        GlassRenderUtil.fillRoundedRect(graphics, x, thumbY, trackW, thumbH, 1.25f, 0x80FFFFFF);
     }
 }

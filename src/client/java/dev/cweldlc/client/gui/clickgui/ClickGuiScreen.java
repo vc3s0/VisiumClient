@@ -56,6 +56,7 @@ public class ClickGuiScreen extends Screen {
     private float openProgress = 0.0f;
     private boolean isClosing = false;
     private float closeProgress = 1.0f;
+    private float categoryTransitionAnim = 1.0f;
     private long lastTime = System.currentTimeMillis();
 
     // Scroll
@@ -208,12 +209,12 @@ public class ClickGuiScreen extends Screen {
             GlassRenderUtil.drawRoundedTexture(graphics, discordAvatar, avatarX, avatarY, avatarSize, avatarSize, avatarSize / 2.0f, applyAlpha(0xFFFFFFFF, alpha));
             GlassRenderUtil.drawRoundedOutline(graphics, (int) avatarX, (int) avatarY, (int) avatarSize, (int) avatarSize, (int) (avatarSize / 2.0f), 1.0f, applyAlpha(0x55FFFFFF, alpha));
         } else {
-            GlassRenderUtil.fillGradientRoundedRect(graphics, avatarX, avatarY, avatarSize, avatarSize, avatarSize / 2.0f, applyAlpha(0xFF0284C7, alpha), applyAlpha(0xFF6366F1, alpha));
-            GlassRenderUtil.drawRoundedOutline(graphics, (int) avatarX, (int) avatarY, (int) avatarSize, (int) avatarSize, (int) (avatarSize / 2.0f), 1.0f, applyAlpha(0xFF38BDF8, alpha));
+            GlassRenderUtil.fillGradientRoundedRect(graphics, avatarX, avatarY, avatarSize, avatarSize, avatarSize / 2.0f, applyAlpha(0xFF27272A, alpha), applyAlpha(0xFF18181B, alpha));
+            GlassRenderUtil.drawRoundedOutline(graphics, (int) avatarX, (int) avatarY, (int) avatarSize, (int) avatarSize, (int) (avatarSize / 2.0f), 1.0f, applyAlpha(0x40FFFFFF, alpha));
 
             String username = Minecraft.getInstance().player != null ? Minecraft.getInstance().player.getGameProfile().getName() : System.getProperty("user.name", "Player");
             String initial = username.isEmpty() ? "P" : username.substring(0, 1).toUpperCase();
-            MsdfRenderer.renderCenteredText(Fonts.bold(), initial, 11.0f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), avatarX + avatarSize / 2.0f, avatarY + 7.0f, 0.0f);
+            MsdfRenderer.renderCenteredText(Fonts.bold(), initial, 11.0f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), avatarX + avatarSize / 2.0f, avatarY + 8.1f, 0.0f);
         }
 
         // Username & Expiry date
@@ -224,10 +225,10 @@ public class ClickGuiScreen extends Screen {
         MsdfRenderer.renderText(Fonts.bold(), displayUser, 8.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), avatarX + avatarSize + 8.0f, profY + 5.0f, 0.0f);
         MsdfRenderer.renderText(Fonts.regular(), "Till: 12.05.2027", 6.5f, applyAlpha(0xFF6B7280, alpha), graphics.pose().last().pose(), avatarX + avatarSize + 8.0f, profY + 17.0f, 0.0f);
 
-        // Purple spinner status ring
+        // Monochrome white spinner status ring
         float ringX = x + w - 18.0f;
         float ringY = profY + 14.0f;
-        drawSpinnerRing(graphics, ringX, ringY, 5.0f, applyAlpha(0xFFA78BFA, alpha));
+        drawSpinnerRing(graphics, ringX, ringY, 5.0f, applyAlpha(0xFFFFFFFF, alpha));
 
         // Vertical divider
         float divX = winX + w;
@@ -250,15 +251,15 @@ public class ClickGuiScreen extends Screen {
             tabHoverMap.put(name, hover);
 
             if (selected) {
-                GlassRenderUtil.fillRoundedRect(graphics, itemX, itemY, itemW, itemH, 6.0f, applyAlpha(0xFF181822, alpha));
-                GlassRenderUtil.drawRoundedOutline(graphics, (int) itemX, (int) itemY, (int) itemW, (int) itemH, 6, 0.6f, applyAlpha(0xFF282836, alpha));
+                GlassRenderUtil.fillRoundedRect(graphics, itemX, itemY, itemW, itemH, 6.0f, applyAlpha(0xFF1E1E24, alpha));
+                GlassRenderUtil.drawRoundedOutline(graphics, (int) itemX, (int) itemY, (int) itemW, (int) itemH, 6, 0.6f, applyAlpha(0xFF33333D, alpha));
             } else if (hover > 0.01f) {
                 GlassRenderUtil.fillRoundedRect(graphics, itemX, itemY, itemW, itemH, 6.0f, applyAlpha(0xFF121218, alpha * hover));
             }
 
             ResourceLocation iconLoc = getCategoryIcon(name);
             int textColor = selected ? 0xFFFFFFFF : (hovered ? 0xFFE2E8F0 : 0xFF9CA3AF);
-            int iconColor = selected ? 0xFFA78BFA : (hovered ? 0xFFCBD5E1 : 0xFF6B7280);
+            int iconColor = selected ? 0xFFFFFFFF : (hovered ? 0xFFCBD5E1 : 0xFF6B7280);
 
             if (iconLoc != null) {
                 // Use client's real category texture
@@ -334,7 +335,7 @@ public class ClickGuiScreen extends Screen {
         // Category icon if present
         ResourceLocation catIcon = getCategoryIcon(selectedSubTab);
         if (catIcon != null) {
-            drawTintedIcon(graphics, catIcon, mainX + 57.0f, barY + 0.5f, 10.0f, applyAlpha(0xFFA78BFA, alpha));
+            drawTintedIcon(graphics, catIcon, mainX + 57.0f, barY + 0.5f, 10.0f, applyAlpha(0xFFFFFFFF, alpha));
             MsdfRenderer.renderText(Fonts.bold(), selectedSubTab, 7.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), mainX + 71.0f, barY + 2.0f, 0.0f);
         } else {
             MsdfRenderer.renderText(Fonts.bold(), selectedSubTab, 7.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), mainX + 57.0f, barY + 2.0f, 0.0f);
@@ -349,7 +350,7 @@ public class ClickGuiScreen extends Screen {
         boolean searchHovered = mouseX >= searchX && mouseX <= searchX + searchW && mouseY >= searchY && mouseY <= searchY + searchH;
         int searchBg = searchFocused ? 0xFF1C1C26 : (searchHovered ? 0xFF181820 : 0xFF14141A);
         GlassRenderUtil.fillRoundedRect(graphics, searchX, searchY, searchW, searchH, 10.0f, applyAlpha(searchBg, alpha));
-        GlassRenderUtil.drawRoundedOutline(graphics, (int) searchX, (int) searchY, (int) searchW, (int) searchH, 10, 0.6f, applyAlpha(searchFocused ? 0xFF7C3AED : 0xFF242430, alpha));
+        GlassRenderUtil.drawRoundedOutline(graphics, (int) searchX, (int) searchY, (int) searchW, (int) searchH, 10, 0.6f, applyAlpha(searchFocused ? 0xFFFFFFFF : 0xFF242430, alpha));
 
         String displayText = searchQuery.isEmpty() ? "Search..." : searchQuery;
         int queryColor = searchQuery.isEmpty() ? 0xFF6B7280 : 0xFFFFFFFF;
@@ -358,11 +359,15 @@ public class ClickGuiScreen extends Screen {
         // Magnifying glass icon on right
         float magX = searchX + searchW - 15.0f;
         float magY = searchY + 5.0f;
-        drawTintedIcon(graphics, SEARCH_ICON, magX, magY, 10.0f, applyAlpha(searchFocused ? 0xFFA78BFA : 0xFF6B7280, alpha));
+        drawTintedIcon(graphics, SEARCH_ICON, magX, magY, 10.0f, applyAlpha(searchFocused ? 0xFFFFFFFF : 0xFF6B7280, alpha));
     }
 
     private void renderContent(GuiGraphics graphics, float mainX, float contentY, float mainW, float contentH, int mouseX, int mouseY, float dt, float alpha) {
         List<Module> visibleModules = getVisibleModules();
+
+        categoryTransitionAnim += (1.0f - categoryTransitionAnim) * (1.0f - (float) Math.exp(-dt * 20.0f));
+        float catAlpha = alpha * Math.min(1.0f, Math.max(0.0f, categoryTransitionAnim));
+        float slideY = (1.0f - categoryTransitionAnim) * 10.0f;
 
         // 2-Column Grid Dimensions
         float colGap = 12.0f;
@@ -372,6 +377,8 @@ public class ClickGuiScreen extends Screen {
 
         // FIXED: Minecraft 1.21.4 enableScissor expects GUI coordinates directly, not multiplied by scaleFactor!
         graphics.enableScissor((int) mainX, (int) contentY, (int) (mainX + mainW), (int) (contentY + contentH));
+        graphics.pose().pushPose();
+        graphics.pose().translate(0.0f, slideY, 0.0f);
 
         float col1Y = contentY + scrollY;
         float col2Y = contentY + scrollY;
@@ -383,7 +390,7 @@ public class ClickGuiScreen extends Screen {
             float cardY = useCol1 ? col1Y : col2Y;
 
             float cardHeight = calculateCardHeight(module);
-            renderModuleCard(graphics, module, cardX, cardY, colW, cardHeight, mouseX, mouseY, dt, alpha);
+            renderModuleCard(graphics, module, cardX, cardY, colW, cardHeight, mouseX, (int) (mouseY - slideY), dt, catAlpha);
 
             if (useCol1) {
                 col1Y += cardHeight + 10.0f;
@@ -392,6 +399,7 @@ public class ClickGuiScreen extends Screen {
             }
         }
 
+        graphics.pose().popPose();
         graphics.disableScissor();
 
         // Clamp scroll range
@@ -425,12 +433,12 @@ public class ClickGuiScreen extends Screen {
         float badgeY = y + 8.0f;
         float badgeSize = 18.0f;
         boolean isBindingThis = (bindingModule == module);
-        int badgeBg = isBindingThis ? 0xFF8B5CF6 : (module.getKeybind() != GLFW.GLFW_KEY_UNKNOWN ? 0xFF2A2338 : 0xFF202028);
+        int badgeBg = isBindingThis ? 0xFFFFFFFF : (module.getKeybind() != GLFW.GLFW_KEY_UNKNOWN ? 0xFF27272E : 0xFF18181D);
         GlassRenderUtil.fillRoundedRect(graphics, badgeX, badgeY, badgeSize, badgeSize, 4.0f, applyAlpha(badgeBg, alpha));
 
         String keyText = isBindingThis ? "..." : (module.getKeybind() != GLFW.GLFW_KEY_UNKNOWN ? getKeyInitial(module.getKeybind()) : "—");
-        int keyColor = isBindingThis ? 0xFFFFFFFF : (module.getKeybind() != GLFW.GLFW_KEY_UNKNOWN ? 0xFFA78BFA : 0xFF6B7280);
-        MsdfRenderer.renderCenteredText(Fonts.bold(), keyText, 7.5f, applyAlpha(keyColor, alpha), graphics.pose().last().pose(), badgeX + badgeSize / 2.0f, badgeY + 5.0f, 0.0f);
+        int keyColor = isBindingThis ? 0xFF000000 : (module.getKeybind() != GLFW.GLFW_KEY_UNKNOWN ? 0xFFFFFFFF : 0xFF71717A);
+        MsdfRenderer.renderCenteredText(Fonts.bold(), keyText, 7.5f, applyAlpha(keyColor, alpha), graphics.pose().last().pose(), badgeX + badgeSize / 2.0f, badgeY + 6.35f, 0.0f);
 
         // 2. Module Name (bold white)
         MsdfRenderer.renderText(Fonts.bold(), module.getName(), 8.8f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), x + 34.0f, y + 13.5f, 0.0f);
@@ -444,10 +452,10 @@ public class ClickGuiScreen extends Screen {
         gearHover += ((gearHovered || module.isExpanded() ? 1.0f : 0.0f) - gearHover) * (1.0f - (float) Math.exp(-dt * 16.0f));
         moduleGearHoverMap.put(module, gearHover);
 
-        int gearColor = GlassRenderUtil.lerpColor(0xFF6B7280, 0xFFA78BFA, gearHover);
+        int gearColor = GlassRenderUtil.lerpColor(0xFF71717A, 0xFFFFFFFF, gearHover);
         drawGearIcon(graphics, gearX + 6.0f, gearY + 6.0f, 5.0f, applyAlpha(gearColor, alpha));
 
-        // 4. iOS Toggle Switch
+        // 4. iOS Toggle Switch (OLED Monochrome)
         float switchW = 24.0f;
         float switchH = 13.0f;
         float switchX = x + w - 28.0f;
@@ -457,13 +465,13 @@ public class ClickGuiScreen extends Screen {
         toggleProg += (((module.isEnabled() ? 1.0f : 0.0f) - toggleProg) * (1.0f - (float) Math.exp(-dt * 18.0f)));
         moduleToggleMap.put(module, toggleProg);
 
-        int trackColor = GlassRenderUtil.lerpColor(0xFF262630, 0xFF8B5CF6, toggleProg);
+        int trackColor = GlassRenderUtil.lerpColor(0xFF26262B, 0xFFFFFFFF, toggleProg);
         GlassRenderUtil.fillRoundedRect(graphics, switchX, switchY, switchW, switchH, 6.5f, applyAlpha(trackColor, alpha));
 
         float thumbSize = 9.0f;
         float thumbX = switchX + 2.0f + toggleProg * (switchW - thumbSize - 4.0f);
         float thumbY = switchY + (switchH - thumbSize) / 2.0f;
-        int thumbColor = GlassRenderUtil.lerpColor(0xFF71717A, 0xFFFFFFFF, toggleProg);
+        int thumbColor = GlassRenderUtil.lerpColor(0xFF8E8E93, 0xFF000000, toggleProg);
         GlassRenderUtil.fillRoundedRect(graphics, thumbX, thumbY, thumbSize, thumbSize, thumbSize / 2.0f, applyAlpha(thumbColor, alpha));
 
         // 5. Settings Drawer (Revealed smoothly)
@@ -498,7 +506,7 @@ public class ClickGuiScreen extends Screen {
         if (slider.getStep() >= 1.0) {
             valStr = String.format("%d", slider.getValue().intValue());
         }
-        MsdfRenderer.renderText(Fonts.bold(), valStr, 7.0f, applyAlpha(0xFF9372FF, alpha), graphics.pose().last().pose(), x + w - 24.0f, y + 6.0f, 0.0f);
+        MsdfRenderer.renderText(Fonts.bold(), valStr, 7.0f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), x + w - 24.0f, y + 6.0f, 0.0f);
 
         float trackW = 50.0f;
         float trackH = 4.0f;
@@ -509,7 +517,7 @@ public class ClickGuiScreen extends Screen {
 
         float progress = slider.getSliderProgress();
         float fillW = Math.max(4.0f, trackW * progress);
-        GlassRenderUtil.fillGradientRoundedRect(graphics, trackX, trackY, fillW, trackH, 2.0f, applyAlpha(0xFF8B5CF6, alpha), applyAlpha(0xFFA78BFA, alpha));
+        GlassRenderUtil.fillRoundedRect(graphics, trackX, trackY, fillW, trackH, 2.0f, applyAlpha(0xFFFFFFFF, alpha));
 
         float thumbW = 7.0f;
         float thumbH = 6.0f;
@@ -537,7 +545,7 @@ public class ClickGuiScreen extends Screen {
         int pillBg = hovered ? 0xFF282834 : 0xFF1E1E26;
         GlassRenderUtil.fillRoundedRect(graphics, pillX, pillY, pillW, pillH, 4.0f, applyAlpha(pillBg, alpha));
 
-        MsdfRenderer.renderCenteredText(Fonts.medium(), text, 6.8f, applyAlpha(0xFFD1D5DB, alpha), graphics.pose().last().pose(), pillX + pillW / 2.0f, pillY + 4.5f, 0.0f);
+        MsdfRenderer.renderCenteredText(Fonts.medium(), text, 6.8f, applyAlpha(0xFFD1D5DB, alpha), graphics.pose().last().pose(), pillX + pillW / 2.0f, pillY + 5.3f, 0.0f);
     }
 
     private void renderCheckboxSetting(GuiGraphics graphics, BooleanSetting bool, float x, float y, float w, int mouseX, int mouseY, float dt, float alpha) {
@@ -552,13 +560,14 @@ public class ClickGuiScreen extends Screen {
         toggleProg += (((bool.getValue() ? 1.0f : 0.0f) - toggleProg) * (1.0f - (float) Math.exp(-dt * 18.0f)));
         boolToggleMap.put(bool, toggleProg);
 
-        int trackColor = GlassRenderUtil.lerpColor(0xFF262630, 0xFF8B5CF6, toggleProg);
+        int trackColor = GlassRenderUtil.lerpColor(0xFF26262B, 0xFFFFFFFF, toggleProg);
         GlassRenderUtil.fillRoundedRect(graphics, switchX, switchY, switchW, switchH, 5.5f, applyAlpha(trackColor, alpha));
 
         float thumbSize = 7.0f;
         float thumbX = switchX + 2.0f + toggleProg * (switchW - thumbSize - 4.0f);
         float thumbY = switchY + (switchH - thumbSize) / 2.0f;
-        GlassRenderUtil.fillRoundedRect(graphics, thumbX, thumbY, thumbSize, thumbSize, thumbSize / 2.0f, applyAlpha(0xFFFFFFFF, alpha));
+        int thumbColor = GlassRenderUtil.lerpColor(0xFF8E8E93, 0xFF000000, toggleProg);
+        GlassRenderUtil.fillRoundedRect(graphics, thumbX, thumbY, thumbSize, thumbSize, thumbSize / 2.0f, applyAlpha(thumbColor, alpha));
     }
 
     private void renderColorSettingRow(GuiGraphics graphics, ColorSetting col, float x, float y, float w, int mouseX, int mouseY, float dt, float alpha) {
@@ -572,7 +581,7 @@ public class ClickGuiScreen extends Screen {
         GlassRenderUtil.fillRoundedRect(graphics, pillX, pillY, pillW, pillH, 4.0f, applyAlpha(col.getValue(), alpha));
         GlassRenderUtil.drawRoundedOutline(graphics, (int) pillX, (int) pillY, (int) pillW, (int) pillH, 4, 0.6f, applyAlpha(0xFFFFFFFF, alpha * 0.4f));
 
-        MsdfRenderer.renderCenteredText(Fonts.bold(), col.getHex(), 6.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), pillX + pillW / 2.0f, pillY + 4.5f, 0.0f);
+        MsdfRenderer.renderCenteredText(Fonts.bold(), col.getHex(), 6.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), pillX + pillW / 2.0f, pillY + 5.3f, 0.0f);
     }
 
     private void renderKeybindSettingRow(GuiGraphics graphics, Module module, float x, float y, float w, int mouseX, int mouseY, float dt, float alpha) {
@@ -587,11 +596,11 @@ public class ClickGuiScreen extends Screen {
         float pillX = x + w - pillW - 10.0f;
         float pillY = y + 3.0f;
 
-        int pillBg = isBinding ? 0xFF8B5CF6 : (module.getKeybind() != GLFW.GLFW_KEY_UNKNOWN ? 0xFF352B4E : 0xFF1E1E26);
+        int pillBg = isBinding ? 0xFFFFFFFF : (module.getKeybind() != GLFW.GLFW_KEY_UNKNOWN ? 0xFF27272E : 0xFF18181D);
         GlassRenderUtil.fillRoundedRect(graphics, pillX, pillY, pillW, pillH, 4.0f, applyAlpha(pillBg, alpha));
 
-        int textColor = isBinding ? 0xFFFFFFFF : (module.getKeybind() != GLFW.GLFW_KEY_UNKNOWN ? 0xFFA78BFA : 0xFF6B7280);
-        MsdfRenderer.renderCenteredText(Fonts.medium(), name, 6.8f, applyAlpha(textColor, alpha), graphics.pose().last().pose(), pillX + pillW / 2.0f, pillY + 4.5f, 0.0f);
+        int textColor = isBinding ? 0xFF000000 : (module.getKeybind() != GLFW.GLFW_KEY_UNKNOWN ? 0xFFFFFFFF : 0xFF71717A);
+        MsdfRenderer.renderCenteredText(Fonts.medium(), name, 6.8f, applyAlpha(textColor, alpha), graphics.pose().last().pose(), pillX + pillW / 2.0f, pillY + 5.3f, 0.0f);
     }
 
     private void renderColorPickerPopup(GuiGraphics graphics, int mouseX, int mouseY, float dt, float alpha) {
@@ -714,10 +723,13 @@ public class ClickGuiScreen extends Screen {
         float g1Y = curY + 11.0f;
         for (int i = 0; i < 4; i++) {
             if (mouseX >= itemX && mouseX <= itemX + itemW && mouseY >= g1Y && mouseY <= g1Y + itemH) {
-                selectedSubTab = allTabs[i];
+                if (!allTabs[i].equalsIgnoreCase(selectedSubTab)) {
+                    selectedSubTab = allTabs[i];
+                    categoryTransitionAnim = 0.0f;
+                    dev.cweldlc.client.util.ClientSounds.playCategorySwitch();
+                }
                 searchQuery = "";
                 targetScrollY = 0.0f;
-                playClick(1.05f);
                 return true;
             }
             g1Y += itemH + 2.0f;
@@ -726,10 +738,13 @@ public class ClickGuiScreen extends Screen {
         float g2Y = g1Y + 17.0f;
         for (int i = 4; i < 6; i++) {
             if (mouseX >= itemX && mouseX <= itemX + itemW && mouseY >= g2Y && mouseY <= g2Y + itemH) {
-                selectedSubTab = allTabs[i];
+                if (!allTabs[i].equalsIgnoreCase(selectedSubTab)) {
+                    selectedSubTab = allTabs[i];
+                    categoryTransitionAnim = 0.0f;
+                    dev.cweldlc.client.util.ClientSounds.playCategorySwitch();
+                }
                 searchQuery = "";
                 targetScrollY = 0.0f;
-                playClick(1.05f);
                 return true;
             }
             g2Y += itemH + 2.0f;
@@ -738,10 +753,13 @@ public class ClickGuiScreen extends Screen {
         float g3Y = g2Y + 17.0f;
         for (int i = 6; i < 8; i++) {
             if (mouseX >= itemX && mouseX <= itemX + itemW && mouseY >= g3Y && mouseY <= g3Y + itemH) {
-                selectedSubTab = allTabs[i];
+                if (!allTabs[i].equalsIgnoreCase(selectedSubTab)) {
+                    selectedSubTab = allTabs[i];
+                    categoryTransitionAnim = 0.0f;
+                    dev.cweldlc.client.util.ClientSounds.playCategorySwitch();
+                }
                 searchQuery = "";
                 targetScrollY = 0.0f;
-                playClick(1.05f);
                 return true;
             }
             g3Y += itemH + 2.0f;

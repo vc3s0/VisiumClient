@@ -47,20 +47,30 @@ public class WatermarkHudModule extends Module {
         setEnabled(true);
     }
 
+    private float animProgress = 0.0f;
+    private final List<HudItem> row1 = new ArrayList<>(8);
+    private final List<HudItem> row2 = new ArrayList<>(4);
+
     @Override
     public void onRender2D(GuiGraphics graphics, float delta) {
-        if (!isEnabled() || mc.options.hideGui) return;
-
         long now = System.currentTimeMillis();
         float dt = Math.min(0.05f, (now - lastRenderTime) / 1000.0f);
         lastRenderTime = now;
+
+        boolean active = isEnabled() && (mc.options == null || !mc.options.hideGui);
+        animProgress += ((active ? 1.0f : 0.0f) - animProgress) * (1.0f - (float) Math.exp(-dt * 16.0f));
+        if (animProgress <= 0.005f) return;
+
+        float slideY = (1.0f - animProgress) * -14.0f;
+        graphics.pose().pushPose();
+        graphics.pose().translate(0.0f, slideY, 0.0f);
 
         float fontSize = 8.0f;
         float startX = 8.0f;
         float startY = 8.0f;
 
         // Row 1: Brand | User | FPS | Ping | Time
-        List<HudItem> row1 = new ArrayList<>();
+        row1.clear();
         String brand = "VisiumClient" + (showVersion.getValue() ? " " + CwelDLC.CLIENT_VERSION : "");
         row1.add(new HudItem(brand, true, 0xFFFFFFFF));
 
@@ -93,7 +103,7 @@ public class WatermarkHudModule extends Module {
         smoothWidth1 = renderRow(graphics, row1, startX, startY, fontSize, smoothWidth1, dt);
 
         // Row 2: Coords | BPS
-        List<HudItem> row2 = new ArrayList<>();
+        row2.clear();
         if (showCoords.getValue() && mc.player != null) {
             row2.add(new HudItem("x" + mc.player.getBlockX() + " y" + mc.player.getBlockY() + " z" + mc.player.getBlockZ(), false, 0xFF9CA3AF));
         }
@@ -107,6 +117,8 @@ public class WatermarkHudModule extends Module {
         if (!row2.isEmpty()) {
             smoothWidth2 = renderRow(graphics, row2, startX, startY + BAR_H + ROW_GAP, fontSize, smoothWidth2, dt);
         }
+
+        graphics.pose().popPose();
     }
 
     private float renderRow(GuiGraphics graphics, List<HudItem> items, float x, float y, float fontSize, float currentSmoothWidth, float dt) {

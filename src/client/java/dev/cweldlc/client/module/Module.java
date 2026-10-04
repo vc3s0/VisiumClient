@@ -47,10 +47,11 @@ public abstract class Module {
             this.enabled = enabled;
             if (enabled) {
                 onEnable();
+                dev.cweldlc.client.util.ClientSounds.playEnable();
             } else {
                 onDisable();
+                dev.cweldlc.client.util.ClientSounds.playDisable();
             }
-            dev.cweldlc.client.util.ClientSounds.play(dev.cweldlc.client.util.ClientSounds.TOGGLE, enabled ? 1.05f : 0.88f, 0.8f);
             dev.cweldlc.client.notification.NotificationManager.post(this.name, enabled ? "Enabled" : "Disabled", enabled);
         }
     }

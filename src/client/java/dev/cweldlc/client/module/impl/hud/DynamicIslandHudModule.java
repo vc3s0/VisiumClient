@@ -33,6 +33,12 @@ public class DynamicIslandHudModule extends Module {
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
 
+    private static final ResourceLocation WIFI_ICON = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/wifi.png");
+    private static final ResourceLocation WIFI_HIGH = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/wifi_high.png");
+    private static final ResourceLocation WIFI_LOW  = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/wifi_low.png");
+    private static final ResourceLocation WIFI_ZERO = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/wifi_zero.png");
+    private static final ResourceLocation ALERT_ICON = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/triangle_alert.png");
+
     public DynamicIslandHudModule() {
         super("DynamicIsland", "Apple styled interactive Dynamic Island top pill", Category.HUD);
         setEnabled(true);
@@ -66,9 +72,15 @@ public class DynamicIslandHudModule extends Module {
         float targetH = 17.0f;
 
         if (notif != null) {
+            long notifAge = System.currentTimeMillis() - notif.timestamp();
+            float bounce = 0.0f;
+            if (notifAge < 350) {
+                float p = (float) notifAge / 350.0f;
+                bounce = (float) (Math.sin(p * Math.PI) * (1.0f - p));
+            }
             String notifText = notif.title() + " " + notif.message();
-            targetW = Math.max(84.0f, Fonts.medium().getWidth(notifText, 6.8f) + 26.0f);
-            targetH = 17.0f;
+            targetW = Math.max(88.0f, Fonts.medium().getWidth(notifText, 6.8f) + 32.0f) + bounce * 14.0f;
+            targetH = 17.0f - bounce * 2.0f;
             isExtended = false;
         } else if (hasMusic) {
             boolean isHovered = mouseFree && mouseX >= (screenW / 2.0f - currentW / 2.0f) && mouseX <= (screenW / 2.0f + currentW / 2.0f)
@@ -143,18 +155,12 @@ public class DynamicIslandHudModule extends Module {
                 float pingY = islandY + (currentH - 7.0f * 0.72f) / 2.0f;
                 MsdfRenderer.renderText(Fonts.medium(), pingStr, 7.0f, pingColor, graphics.pose().last().pose(), pingTextX, pingY, 0.0f);
 
-                // 4 Clean White Signal Strength Bars
-                float barBaseX = pingTextX + Fonts.medium().getWidth(pingStr, 7.0f) + 4.5f;
-                int[] thresholds = {300, 150, 80, 0};
-                for (int b = 0; b < 4; b++) {
-                    float bW = 1.6f;
-                    float bH = 2.5f + b * 1.5f;
-                    float bX = barBaseX + b * 2.6f;
-                    float bY = islandY + (currentH - bH) / 2.0f;
-                    boolean active = ping <= thresholds[b] || b == 0;
-                    int bCol = active ? pingColor : applyAlpha(0x35FFFFFF, outerAlpha);
-                    GlassRenderUtil.fillRoundedRect(graphics, bX, bY, bW, bH, 0.6f, bCol);
-                }
+                // Vector Wi-Fi icon
+                ResourceLocation wifiIcon = (ping <= 50) ? WIFI_HIGH : ((ping <= 120) ? WIFI_ICON : ((ping <= 250) ? WIFI_LOW : WIFI_ZERO));
+                float iconX = pingTextX + Fonts.medium().getWidth(pingStr, 7.0f) + 4.0f;
+                float iconSize = 9.0f;
+                float iconY = islandY + (currentH - iconSize) / 2.0f;
+                drawIcon(graphics, wifiIcon, iconX, iconY, iconSize, pingColor);
             }
         }
 
@@ -201,18 +207,18 @@ public class DynamicIslandHudModule extends Module {
     }
 
     private void renderNotification(GuiGraphics graphics, NotificationManager.Notification notif, float x, float y, float w, float h) {
-        float dotSize = 4.0f;
-        float dotX = x + 7.0f;
-        float dotY = y + (h - dotSize) / 2.0f;
+        float iconSize = 9.5f;
+        float iconX = x + 6.5f;
+        float iconY = y + (h - iconSize) / 2.0f;
 
-        // Pure white indicator dot
-        GlassRenderUtil.fillRoundedRect(graphics, dotX, dotY, dotSize, dotSize, 2.0f, 0xFFFFFFFF);
+        // Render vector alert icon
+        drawIcon(graphics, ALERT_ICON, iconX, iconY, iconSize, 0xFFFFFFFF);
 
-        float textX = dotX + dotSize + 5.0f;
+        float textX = iconX + iconSize + 4.5f;
         float textY = y + (h - 6.8f * 0.72f) / 2.0f;
-        MsdfRenderer.renderText(Fonts.medium(), notif.title(), 6.8f, 0xFFFFFFFF, graphics.pose().last().pose(), textX, textY, 0.0f);
+        MsdfRenderer.renderText(Fonts.bold(), notif.title(), 6.8f, 0xFFFFFFFF, graphics.pose().last().pose(), textX, textY, 0.0f);
 
-        float titleW = Fonts.medium().getWidth(notif.title(), 6.8f);
+        float titleW = Fonts.bold().getWidth(notif.title(), 6.8f);
         MsdfRenderer.renderText(Fonts.regular(), notif.message(), 6.2f, 0xFF9CA3AF, graphics.pose().last().pose(), textX + titleW + 4.5f, y + (h - 6.2f * 0.72f) / 2.0f, 0.0f);
     }
 
@@ -232,16 +238,26 @@ public class DynamicIslandHudModule extends Module {
             MsdfRenderer.renderCenteredText(Fonts.medium(), "♫", 5.5f, 0xFFFFFFFF, graphics.pose().last().pose(), thumbX + thumbSize / 2.0f, thumbY + 1.8f, 0.0f);
         }
 
-        // Center: Track Title
+        // Center: Track Title with smooth marquee ticker animation
         float textX = thumbX + thumbSize + 4.5f;
         float textY = y + (h - 6.8f * 0.72f) / 2.0f;
         float maxW = w - (textX - x) - 7.0f;
 
         String title = media.getTitle();
-        if (Fonts.medium().getWidth(title, 6.8f) > maxW) {
-            title = title.substring(0, Math.min(title.length(), 16)) + "...";
+        float titleW = Fonts.medium().getWidth(title, 6.8f);
+
+        if (titleW > maxW) {
+            float overflow = titleW - maxW;
+            float cycle = (System.currentTimeMillis() % 6000L) / 6000.0f;
+            float p = (float) (0.5 - 0.5 * Math.cos(cycle * Math.PI * 2.0));
+            float offset = p * overflow;
+
+            graphics.enableScissor((int) textX, (int) y, (int) (textX + maxW), (int) (y + h));
+            MsdfRenderer.renderText(Fonts.medium(), title, 6.8f, 0xFFFFFFFF, graphics.pose().last().pose(), textX - offset, textY, 0.0f);
+            graphics.disableScissor();
+        } else {
+            MsdfRenderer.renderText(Fonts.medium(), title, 6.8f, 0xFFFFFFFF, graphics.pose().last().pose(), textX, textY, 0.0f);
         }
-        MsdfRenderer.renderText(Fonts.medium(), title, 6.8f, 0xFFFFFFFF, graphics.pose().last().pose(), textX, textY, 0.0f);
     }
 
     private void renderExtendedMusic(GuiGraphics graphics, float x, float y, float w, float h, double mouseX, double mouseY) {
@@ -372,5 +388,28 @@ public class DynamicIslandHudModule extends Module {
             }
         }
         return false;
+    }
+
+    private void drawIcon(GuiGraphics graphics, ResourceLocation loc, float x, float y, float size, int color) {
+        if (loc == null || size <= 0) return;
+        try {
+            Minecraft.getInstance().getTextureManager().getTexture(loc).setFilter(true, false);
+        } catch (Exception ignored) {}
+        graphics.blit(
+                RenderType::guiTextured,
+                loc,
+                Math.round(x),
+                Math.round(y),
+                0.0f,
+                0.0f,
+                Math.round(size),
+                Math.round(size),
+                128,
+                128,
+                128,
+                128,
+                color
+        );
+        graphics.flush();
     }
 }

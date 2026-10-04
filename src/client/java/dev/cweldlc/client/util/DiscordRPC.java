@@ -91,17 +91,8 @@ public class DiscordRPC {
                 conn.setReadTimeout(5000);
                 if (conn.getResponseCode() == 200) {
                     try (java.io.InputStream is = conn.getInputStream()) {
-                        java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(is);
-                        if (img != null) {
-                            int w = img.getWidth();
-                            int h = img.getHeight();
-                            NativeImage nativeImg = new NativeImage(NativeImage.Format.RGBA, w, h, false);
-                            int[] pixels = img.getRGB(0, 0, w, h, null, 0, w);
-                            for (int y = 0; y < h; y++) {
-                                for (int x = 0; x < w; x++) {
-                                    nativeImg.setPixel(x, y, pixels[y * w + x]);
-                                }
-                            }
+                        NativeImage nativeImg = NativeImage.read(is);
+                        if (nativeImg != null) {
                             Minecraft mc = Minecraft.getInstance();
                             if (mc != null) {
                                 mc.execute(() -> {
@@ -111,6 +102,7 @@ public class DiscordRPC {
                                         tex.upload();
                                         mc.getTextureManager().register(loc, tex);
                                         avatarTexture = loc;
+                                        dev.cweldlc.CwelDLC.LOGGER.info("[VisiumClient] Successfully loaded Discord avatar for {} ({})", username, uid);
                                     } catch (Exception e) {
                                         nativeImg.close();
                                     }
@@ -208,10 +200,14 @@ public class DiscordRPC {
         }
 
         // Parse user info: id, username, global_name, avatar
-        userId     = extractJsonString(resp, "\"id\"");
-        username   = extractJsonString(resp, "\"username\"");
-        globalName = extractJsonString(resp, "\"global_name\"");
-        avatarHash = extractJsonString(resp, "\"avatar\"");
+        int userIdx = resp.indexOf("\"user\"");
+        String userSub = userIdx >= 0 ? resp.substring(userIdx) : resp;
+        userId     = extractJsonString(userSub, "\"id\"");
+        username   = extractJsonString(userSub, "\"username\"");
+        globalName = extractJsonString(userSub, "\"global_name\"");
+        avatarHash = extractJsonString(userSub, "\"avatar\"");
+
+        dev.cweldlc.CwelDLC.LOGGER.info("[DiscordRPC] Connected! user='{}' ({}), globalName='{}', avatarHash='{}'", username, userId, globalName, avatarHash);
 
         if (!avatarHash.isEmpty() && !avatarHash.equalsIgnoreCase("null")) {
             fetchAvatarAsync(userId, avatarHash);

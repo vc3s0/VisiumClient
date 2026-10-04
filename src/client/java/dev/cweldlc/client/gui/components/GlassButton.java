@@ -63,19 +63,25 @@ public class GlassButton extends AbstractButton {
         graphics.pose().scale(scale, scale, 1.0f);
         graphics.pose().translate(-cx, -cy, 0.0f);
 
-        // Apple OLED Black Glass Panel
-        GlassRenderUtil.drawGlassPanel(graphics, getX(), getY(), getWidth(), getHeight(), cornerRadius, hovered, hoverProgress);
+        // Apple Translucent Glass Panel (distinct from card container, smooth hover illumination)
+        int bgAlpha = (int) (140 + 65 * hoverProgress);
+        int bgColor = (bgAlpha << 24) | 0x141416;
+        GlassRenderUtil.fillRoundedRect(graphics, getX(), getY(), getWidth(), getHeight(), (float) cornerRadius, bgColor);
+
+        // Hairline glass border
+        int borderAlpha = (int) (35 + 65 * hoverProgress);
+        GlassRenderUtil.drawRoundedOutline(graphics, getX(), getY(), getWidth(), getHeight(), cornerRadius, 0.8f, (borderAlpha << 24) | 0xFFFFFF);
 
         // Left accent indicator (Apple stealth pill)
         if (iconAccentColor != 0) {
-            int dotAlpha = (int) (60 + 195 * hoverProgress);
+            int dotAlpha = (int) (80 + 175 * hoverProgress);
             int dotColor = (dotAlpha << 24) | (iconAccentColor & 0x00FFFFFF);
-            GlassRenderUtil.fillRoundedRect(graphics, getX() + 10, getY() + (getHeight() - 10) / 2, 3, 10, 1, dotColor);
+            GlassRenderUtil.fillRoundedRect(graphics, getX() + 10, getY() + (getHeight() - 10) / 2, 3, 10, 1.5f, dotColor);
         }
 
-        // Text rendered via MSDF vector font (dynamic theme-aware typography)
+        // Text rendered via MSDF vector font (crisp monochrome white)
         String text = getMessage().getString();
-        int textColor = dev.cweldlc.client.theme.ThemeManager.getPrimaryTextColor(hoverProgress);
+        int textColor = hovered ? 0xFFFFFFFF : 0xFFE5E7EB;
         float fontSize = 9.5f;
         float textY = getY() + (getHeight() - fontSize * 0.7f) / 2.0f;
 
