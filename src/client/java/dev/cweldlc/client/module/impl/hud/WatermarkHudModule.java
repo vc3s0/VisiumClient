@@ -8,7 +8,10 @@ import dev.cweldlc.client.module.Module;
 import dev.cweldlc.client.module.setting.BooleanSetting;
 import dev.cweldlc.client.theme.ThemeManager;
 import dev.cweldlc.client.util.GlassRenderUtil;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.resources.ResourceLocation;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -17,6 +20,7 @@ import java.util.List;
 
 public class WatermarkHudModule extends Module {
 
+    private final BooleanSetting showIcons   = addSetting(new BooleanSetting("Show Icons", "Displays sleek icons alongside watermark stats", true));
     private final BooleanSetting showVersion = addSetting(new BooleanSetting("Show Version", "Displays client version", true));
     private final BooleanSetting showUser    = addSetting(new BooleanSetting("Show User", "Displays username", true));
     private final BooleanSetting showFps     = addSetting(new BooleanSetting("Show FPS", "Displays real-time FPS counter", true));
@@ -25,18 +29,30 @@ public class WatermarkHudModule extends Module {
     private final BooleanSetting showCoords  = addSetting(new BooleanSetting("Show Coords", "Displays player coordinates", false));
     private final BooleanSetting showBps     = addSetting(new BooleanSetting("Show BPS", "Displays movement speed", false));
 
+    private static final ResourceLocation ICON_BRAND     = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/sparkles.png");
+    private static final ResourceLocation ICON_USER      = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/category/player.png");
+    private static final ResourceLocation ICON_FPS       = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/gauge.png");
+    private static final ResourceLocation ICON_WIFI_HIGH = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/wifi_high.png");
+    private static final ResourceLocation ICON_WIFI_MID  = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/wifi.png");
+    private static final ResourceLocation ICON_WIFI_LOW  = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/wifi_low.png");
+    private static final ResourceLocation ICON_CLOCK     = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/clock.png");
+    private static final ResourceLocation ICON_COORDS    = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/compass.png");
+    private static final ResourceLocation ICON_BPS       = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/category/movement.png");
+
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     private static final float BAR_H        = 18.0f;
     private static final float BAR_RADIUS   = 5.0f;
     private static final float H_PAD        = 7.0f;
     private static final float ELEMENT_GAP  = 6.0f;
+    private static final float ICON_SIZE    = 8.0f;
+    private static final float ICON_GAP     = 3.5f;
     private static final float DIVIDER_W    = 1.0f;
     private static final float DIVIDER_H    = 9.0f;
     private static final float ROW_GAP      = 3.0f;
     private static final int DIVIDER_COLOR  = 0xFF71717A; // Zinc-500 sleek gray divider
 
-    private record HudItem(String text, boolean bold, int color) {}
+    private record HudItem(ResourceLocation icon, String text, boolean bold, int color) {}
 
     private float smoothWidth1 = 0.0f;
     private float smoothWidth2 = 0.0f;
@@ -72,17 +88,17 @@ public class WatermarkHudModule extends Module {
         // Row 1: Brand | User | FPS | Ping | Time
         row1.clear();
         String brand = "VisiumClient" + (showVersion.getValue() ? " " + CwelDLC.CLIENT_VERSION : "");
-        row1.add(new HudItem(brand, true, 0xFFFFFFFF));
+        row1.add(new HudItem(ICON_BRAND, brand, true, 0xFFFFFFFF));
 
         if (showUser.getValue()) {
             String username = (mc.player != null) ? mc.player.getName().getString() : (mc.getUser() != null ? mc.getUser().getName() : "User");
             if (!username.isEmpty()) {
-                row1.add(new HudItem(username, false, 0xFFD1D5DB));
+                row1.add(new HudItem(ICON_USER, username, false, 0xFFD1D5DB));
             }
         }
 
         if (showFps.getValue()) {
-            row1.add(new HudItem(mc.getFps() + "fps", false, 0xFF9CA3AF));
+            row1.add(new HudItem(ICON_FPS, mc.getFps() + "fps", false, 0xFF9CA3AF));
         }
 
         if (showPing.getValue()) {
@@ -93,11 +109,18 @@ public class WatermarkHudModule extends Module {
                     if (entry != null) ping = entry.getLatency();
                 }
             } catch (Throwable ignored) {}
-            row1.add(new HudItem(ping + "ms", false, 0xFF9CA3AF));
+
+            ResourceLocation pingIcon = ICON_WIFI_HIGH;
+            if (ping > 120) {
+                pingIcon = ICON_WIFI_LOW;
+            } else if (ping > 60) {
+                pingIcon = ICON_WIFI_MID;
+            }
+            row1.add(new HudItem(pingIcon, ping + "ms", false, 0xFF9CA3AF));
         }
 
         if (showTime.getValue()) {
-            row1.add(new HudItem(LocalTime.now().format(TIME_FMT), false, 0xFF9CA3AF));
+            row1.add(new HudItem(ICON_CLOCK, LocalTime.now().format(TIME_FMT), false, 0xFF9CA3AF));
         }
 
         smoothWidth1 = renderRow(graphics, row1, startX, startY, fontSize, smoothWidth1, dt);
@@ -105,13 +128,13 @@ public class WatermarkHudModule extends Module {
         // Row 2: Coords | BPS
         row2.clear();
         if (showCoords.getValue() && mc.player != null) {
-            row2.add(new HudItem("x" + mc.player.getBlockX() + " y" + mc.player.getBlockY() + " z" + mc.player.getBlockZ(), false, 0xFF9CA3AF));
+            row2.add(new HudItem(ICON_COORDS, "x" + mc.player.getBlockX() + " y" + mc.player.getBlockY() + " z" + mc.player.getBlockZ(), false, 0xFF9CA3AF));
         }
         if (showBps.getValue() && mc.player != null) {
             double dx = mc.player.getX() - mc.player.xOld;
             double dz = mc.player.getZ() - mc.player.zOld;
             double bps = Math.hypot(dx, dz) * 20.0;
-            row2.add(new HudItem(String.format(java.util.Locale.US, "%.1fbps", bps), false, 0xFF9CA3AF));
+            row2.add(new HudItem(ICON_BPS, String.format(java.util.Locale.US, "%.1fbps", bps), false, 0xFF9CA3AF));
         }
 
         if (!row2.isEmpty()) {
@@ -124,12 +147,14 @@ public class WatermarkHudModule extends Module {
     private float renderRow(GuiGraphics graphics, List<HudItem> items, float x, float y, float fontSize, float currentSmoothWidth, float dt) {
         if (items.isEmpty()) return currentSmoothWidth;
 
+        boolean iconsEnabled = showIcons.getValue();
         float dividerSpacing = ELEMENT_GAP * 2.0f + DIVIDER_W;
         float contentW = 0.0f;
         for (int i = 0; i < items.size(); i++) {
             HudItem item = items.get(i);
             var font = item.bold() ? Fonts.medium() : Fonts.regular();
-            float itemW = font.getWidth(item.text(), fontSize);
+            float itemW = (iconsEnabled && item.icon() != null ? ICON_SIZE + ICON_GAP : 0.0f)
+                    + font.getWidth(item.text(), fontSize);
             contentW += (i == 0 ? 0.0f : dividerSpacing) + itemW;
         }
 
@@ -147,6 +172,7 @@ public class WatermarkHudModule extends Module {
 
         float curX = x + H_PAD;
         float textY = y + (BAR_H - fontSize * 0.72f) / 2.0f;
+        float iconY = y + (BAR_H - ICON_SIZE) / 2.0f;
         float dividerY = y + (BAR_H - DIVIDER_H) / 2.0f;
 
         for (int i = 0; i < items.size(); i++) {
@@ -157,6 +183,11 @@ public class WatermarkHudModule extends Module {
                 curX += DIVIDER_W + ELEMENT_GAP;
             }
 
+            if (iconsEnabled && item.icon() != null) {
+                drawIcon(graphics, item.icon(), curX, iconY, ICON_SIZE, item.color());
+                curX += ICON_SIZE + ICON_GAP;
+            }
+
             var font = item.bold() ? Fonts.medium() : Fonts.regular();
             MsdfRenderer.renderText(font, item.text(), fontSize, item.color(), graphics.pose().last().pose(), curX, textY, 0.0f);
             curX += font.getWidth(item.text(), fontSize);
@@ -164,5 +195,28 @@ public class WatermarkHudModule extends Module {
 
         graphics.disableScissor();
         return currentSmoothWidth;
+    }
+
+    private void drawIcon(GuiGraphics graphics, ResourceLocation loc, float x, float y, float size, int color) {
+        if (loc == null || size <= 0) return;
+        try {
+            Minecraft.getInstance().getTextureManager().getTexture(loc).setFilter(true, false);
+        } catch (Exception ignored) {}
+        graphics.blit(
+                RenderType::guiTextured,
+                loc,
+                Math.round(x),
+                Math.round(y),
+                0.0f,
+                0.0f,
+                Math.round(size),
+                Math.round(size),
+                128,
+                128,
+                128,
+                128,
+                color
+        );
+        graphics.flush();
     }
 }
