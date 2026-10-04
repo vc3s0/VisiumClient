@@ -1,17 +1,17 @@
 package dev.cweldlc.client.gui.clickgui;
 
-import com.mojang.math.Axis;
 import dev.cweldlc.client.font.msdf.Fonts;
 import dev.cweldlc.client.font.msdf.MsdfRenderer;
-import dev.cweldlc.client.media.MediaManager;
 import dev.cweldlc.client.module.Category;
 import dev.cweldlc.client.module.Module;
 import dev.cweldlc.client.module.ModuleManager;
 import dev.cweldlc.client.module.setting.BooleanSetting;
+import dev.cweldlc.client.module.setting.ColorSetting;
 import dev.cweldlc.client.module.setting.ModeSetting;
 import dev.cweldlc.client.module.setting.NumberSetting;
 import dev.cweldlc.client.module.setting.Setting;
 import dev.cweldlc.client.theme.ThemeManager;
+import dev.cweldlc.client.util.ClientSounds;
 import dev.cweldlc.client.util.GlassRenderUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -21,8 +21,11 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
+import org.joml.Matrix4f;
 import org.lwjgl.glfw.GLFW;
 
+import java.awt.Color;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,79 +35,45 @@ public class ClickGuiScreen extends Screen {
 
     private final Screen parent;
     private Category currentCategory = Category.COMBAT;
+    private String selectedSubTab = "Combat";
+
+    // Active state trackers
     private Module bindingModule = null;
     private NumberSetting draggingSlider = null;
+    private ColorSetting activeColorPickerSetting = null;
+    private float colorPickerX = 0;
+    private float colorPickerY = 0;
+    private boolean isDraggingHue = false;
+    private boolean isDraggingSV = false;
+    private float pickerHue = 0.75f;
+    private float pickerSat = 0.55f;
+    private float pickerVal = 1.0f;
 
-    private static final float WIN_WIDTH = 550.0f;
-    private static final float WIN_HEIGHT = 330.0f;
-    private static final float SIDEBAR_WIDTH = 112.0f;
+    // Dimensions
+    private static final float WIN_WIDTH = 620.0f;
+    private static final float WIN_HEIGHT = 390.0f;
+    private static final float SIDEBAR_WIDTH = 138.0f;
 
-    // Icons
-    private static final ResourceLocation PLAY_ICON = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/play.png");
-    private static final ResourceLocation PAUSE_ICON = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/pause.png");
-    private static final ResourceLocation SKIP_BACK_ICON = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/skip_back.png");
-    private static final ResourceLocation SKIP_FORWARD_ICON = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/skip_forward.png");
-    private static final ResourceLocation SEARCH_ICON = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/category/search.png");
-
-    // Opening & Closing Animation Engine
+    // Animations
     private float openProgress = 0.0f;
     private boolean isClosing = false;
     private float closeProgress = 1.0f;
     private long lastTime = System.currentTimeMillis();
 
-    // Category Sliding Pill Animation (Vertical on Sidebar)
-    private float indicatorY = -1.0f;
-
-    // Scrolling
+    // Scroll
     private float scrollY = 0.0f;
     private float targetScrollY = 0.0f;
 
-    // Module Hover Animation Tracker
-    private final Map<Module, Float> moduleHoverMap = new HashMap<>();
-
-    // Category Hover Animation Tracker
-    private final Map<Category, Float> catHoverMap = new HashMap<>();
-
-    // Settings Animation Trackers
-    private final Map<Setting<?>, Float> settingHoverMap = new HashMap<>();
-    private final Map<BooleanSetting, Float> boolToggleMap = new HashMap<>();
-    private final Map<NumberSetting, Float> sliderProgressMap = new HashMap<>();
-    private final Map<NumberSetting, Float> sliderHoverMap = new HashMap<>();
-    private final Map<ModeSetting, Float> modeBounceMap = new HashMap<>();
-
-    // Keybind Animation Trackers (Pulse, Morph Width, Success Flash)
-    private final Map<Module, Float> bindProgressMap = new HashMap<>();
-    private final Map<Module, Float> bindWidthMap = new HashMap<>();
-    private final Map<Module, Float> bindFlashMap = new HashMap<>();
-
-    // Live Search Engine
+    // Search
     private String searchQuery = "";
     private boolean searchFocused = false;
-    private float searchBoxWidth = 58.0f;
 
-    // Media Player Card Engine & Fluid Animations
-    private boolean showMediaPlayer = true;
-    private float mediaAnimProgress = 1.0f;
-    private boolean isDraggingScrubber = false;
-
-    // Transport buttons hover & click bounce animations
-    private float prevHoverAnim = 0.0f;
-    private float playHoverAnim = 0.0f;
-    private float nextHoverAnim = 0.0f;
-    private float skip10PrevHoverAnim = 0.0f;
-    private float skip10NextHoverAnim = 0.0f;
-
-    private float prevBounce = 0.0f;
-    private float playBounce = 0.0f;
-    private float nextBounce = 0.0f;
-    private float skip10PrevBounce = 0.0f;
-    private float skip10NextBounce = 0.0f;
-
-    // Scrub bar animations
-    private float smoothProgress = 0.0f;
-    private float scrubHoverAnim = 0.0f;
-    private float rewindWaveAnim = 0.0f;
-    private float forwardWaveAnim = 0.0f;
+    // Animation maps
+    private final Map<Module, Float> moduleToggleMap = new HashMap<>();
+    private final Map<Module, Float> moduleGearHoverMap = new HashMap<>();
+    private final Map<BooleanSetting, Float> boolToggleMap = new HashMap<>();
+    private final Map<NumberSetting, Float> sliderValueMap = new HashMap<>();
+    private final Map<String, Float> tabHoverMap = new HashMap<>();
 
     public ClickGuiScreen() {
         this(null);
@@ -118,74 +87,37 @@ public class ClickGuiScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        dev.cweldlc.client.util.ClientSounds.play(dev.cweldlc.client.util.ClientSounds.CLICKGUI_OPEN, 1.0f, 0.85f);
-        lastTime = System.currentTimeMillis();
         openProgress = 0.0f;
         isClosing = false;
         closeProgress = 1.0f;
-        indicatorY = -1.0f;
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return false;
-    }
-
-    @Override
-    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
-        // Intentionally custom rendered in render()
+        lastTime = System.currentTimeMillis();
+        ClientSounds.play(ClientSounds.CLICKGUI_OPEN, 1.0f, 0.85f);
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
         long now = System.currentTimeMillis();
-        float dt = Math.min(0.05f, (now - lastTime) / 1000.0f);
+        float dt = Math.min(0.1f, (now - lastTime) / 1000.0f);
         lastTime = now;
 
-        // Media & Animations Engine Update
-        MediaManager.getInstance().update(dt);
-        mediaAnimProgress += ((showMediaPlayer ? 1.0f : 0.0f) - mediaAnimProgress) * (1.0f - (float) Math.exp(-dt * 14.0f));
-        float targetSearchW = searchFocused ? 90.0f : (searchQuery.isEmpty() ? 56.0f : 80.0f);
-        searchBoxWidth += (targetSearchW - searchBoxWidth) * (1.0f - (float) Math.exp(-dt * 18.0f));
-
-        // Transport button spring bounces decay
-        prevBounce = Math.max(0.0f, prevBounce - dt * 4.8f);
-        playBounce = Math.max(0.0f, playBounce - dt * 4.8f);
-        nextBounce = Math.max(0.0f, nextBounce - dt * 4.8f);
-        skip10PrevBounce = Math.max(0.0f, skip10PrevBounce - dt * 4.8f);
-        skip10NextBounce = Math.max(0.0f, skip10NextBounce - dt * 4.8f);
-
-        // Progress bar rewind & forward wave animations decay
-        rewindWaveAnim = Math.max(0.0f, rewindWaveAnim - dt * 2.2f);
-        forwardWaveAnim = Math.max(0.0f, forwardWaveAnim - dt * 2.2f);
-
-        // Fluid smooth progress gliding
-        float targetProg = MediaManager.getInstance().getProgress();
-        if (isDraggingScrubber) {
-            smoothProgress = targetProg;
-        } else {
-            float speed = Math.abs(targetProg - smoothProgress) > 0.08f ? 24.0f : 12.0f;
-            smoothProgress += (targetProg - smoothProgress) * (1.0f - (float) Math.exp(-dt * speed));
-        }
-
-        // 1. Update Opening & Closing Animations
+        // 1. Spring interpolation for open/close
         if (!isClosing) {
-            openProgress += (1.0f - openProgress) * (1.0f - (float) Math.exp(-dt * 14.0f));
+            openProgress += (1.0f - openProgress) * (1.0f - (float) Math.exp(-dt * 15.0f));
         } else {
-            closeProgress += (0.0f - closeProgress) * (1.0f - (float) Math.exp(-dt * 16.0f));
+            closeProgress += (0.0f - closeProgress) * (1.0f - (float) Math.exp(-dt * 18.0f));
             if (closeProgress <= 0.02f) {
                 actuallyClose();
                 return;
             }
         }
 
-        scrollY += (targetScrollY - scrollY) * (1.0f - (float) Math.exp(-dt * 12.0f));
+        scrollY += (targetScrollY - scrollY) * (1.0f - (float) Math.exp(-dt * 14.0f));
 
         float animProgress = isClosing ? closeProgress : openProgress;
         float currentAlpha = Math.max(0.0f, Math.min(1.0f, animProgress));
 
-        // 2. Cinematic backdrop blur/dim
-        int dimAlpha = (int) (currentAlpha * 0x6E);
+        // 2. Cinematic backdrop dim
+        int dimAlpha = (int) (currentAlpha * 0x85);
         graphics.fill(0, 0, this.width, this.height, dimAlpha << 24);
 
         float winX = (this.width - WIN_WIDTH) / 2.0f;
@@ -193,1571 +125,811 @@ public class ClickGuiScreen extends Screen {
         float centerX = this.width / 2.0f;
         float centerY = this.height / 2.0f;
 
-        // 3. Apple Spring Scale (0.88 -> 1.0 on open, 1.0 -> 0.88 on close)
+        // 3. Fluid Spring Scale
         graphics.pose().pushPose();
         graphics.pose().translate(centerX, centerY, 0.0f);
-        float scale = 0.88f + 0.12f * animProgress;
+        float scale = 0.90f + 0.10f * animProgress;
         graphics.pose().scale(scale, scale, 1.0f);
         graphics.pose().translate(-centerX, -centerY, 0.0f);
 
-        // 4. Main Apple Liquid Glass Window Card (Radius 16)
-        GlassRenderUtil.drawGlassPanel(
-                graphics,
-                (int) winX,
-                (int) winY,
-                (int) WIN_WIDTH,
-                (int) WIN_HEIGHT,
-                16,
-                false,
-                0.0f
-        );
+        // 4. Main Obsidian Background Panel (Wayne DLC layout)
+        int mainBg = applyAlpha(0xFF0D0D12, currentAlpha);
+        GlassRenderUtil.fillRoundedRect(graphics, winX, winY, WIN_WIDTH, WIN_HEIGHT, 16.0f, mainBg);
 
-        // Smoothly update module animations each frame
+        // Update module animations
         for (Module m : ModuleManager.getInstance().getModules()) {
             m.updateAnimations(dt);
         }
 
-        float divX = winX + SIDEBAR_WIDTH + 2.0f;
-        float mainX = divX + 12.0f;
-        float mainW = (winX + WIN_WIDTH) - mainX - 12.0f;
-
-        // 5. Left Sidebar: Branding + Vertical Category Tabs
+        // 5. Left Sidebar
         renderSidebar(graphics, winX, winY, mouseX, mouseY, dt, currentAlpha);
 
-        // 6. Main Area Header: Current Category Title + Stats + Live Search + Quick Controls
-        renderMainHeader(graphics, mainX, winY, mainW, mouseX, mouseY, dt, currentAlpha);
+        // 6. Top Bar (Breadcrumbs & Search)
+        float mainX = winX + SIDEBAR_WIDTH + 14.0f;
+        float mainW = (winX + WIN_WIDTH) - mainX - 14.0f;
+        renderTopBar(graphics, mainX, winY, mainW, mouseX, mouseY, dt, currentAlpha);
 
-        // 7. Content Area: Modules Grid with smooth drawer expand animations
-        renderModules(graphics, mainX, winY, mainW, mouseX, mouseY, dt, currentAlpha);
+        // 7. Content Area: 2-Column Cards Grid
+        renderContent(graphics, mainX, winY + 38.0f, mainW, WIN_HEIGHT - 48.0f, mouseX, mouseY, dt, currentAlpha);
 
-        // 7. Floating Apple Music Media Player Card
-        if (mediaAnimProgress > 0.01f) {
-            renderMediaPlayer(graphics, winX, winY, mouseX, mouseY, dt, currentAlpha * mediaAnimProgress);
+        // 8. Floating Color Picker Popup (if open)
+        if (activeColorPickerSetting != null) {
+            renderColorPickerPopup(graphics, mouseX, mouseY, dt, currentAlpha);
         }
 
         graphics.pose().popPose();
-
         super.render(graphics, mouseX, mouseY, delta);
     }
 
+    private void renderSidebar(GuiGraphics graphics, float winX, float winY, int mouseX, int mouseY, float dt, float alpha) {
+        float x = winX;
+        float w = SIDEBAR_WIDTH;
 
-    private void drawTintedIcon(GuiGraphics graphics, ResourceLocation loc, float x, float y, float size, int color) {
-        try {
-            Minecraft.getInstance().getTextureManager().getTexture(loc).setFilter(true, false);
-        } catch (Exception ignored) {}
-        graphics.blit(
-                RenderType::guiTextured,
-                loc,
-                (int) x,
-                (int) y,
-                0.0f,
-                0.0f,
-                (int) size,
-                (int) size,
-                128,
-                128,
-                128,
-                128,
-                color
+        // Top App Icon (Squircle with purple gradient)
+        float iconX = x + 14.0f;
+        float iconY = winY + 14.0f;
+        float iconSize = 28.0f;
+        GlassRenderUtil.fillGradientRoundedRect(graphics, iconX, iconY, iconSize, iconSize, 8.0f, applyAlpha(0xFF7C3AED, alpha), applyAlpha(0xFFA855F7, alpha));
+
+        // White stylized glyph inside squircle
+        GlassRenderUtil.fillRoundedRect(graphics, iconX + 7.0f, iconY + 8.0f, 4.0f, 12.0f, 2.0f, applyAlpha(0xFFFFFFFF, alpha));
+        GlassRenderUtil.fillRoundedRect(graphics, iconX + 17.0f, iconY + 8.0f, 4.0f, 12.0f, 2.0f, applyAlpha(0xFFFFFFFF, alpha));
+        GlassRenderUtil.fillRoundedRect(graphics, iconX + 7.0f, iconY + 16.0f, 14.0f, 4.0f, 2.0f, applyAlpha(0xFFFFFFFF, alpha));
+
+        // App Branding Text
+        MsdfRenderer.renderText(Fonts.bold(), "Wayne DLC", 10.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), x + 48.0f, winY + 15.0f, 0.0f);
+        MsdfRenderer.renderText(Fonts.regular(), "Recode", 7.0f, applyAlpha(0xFF6B7280, alpha), graphics.pose().last().pose(), x + 48.0f, winY + 28.5f, 0.0f);
+
+        float curY = winY + 52.0f;
+
+        // Group 1: MAIN
+        curY = renderNavSection(graphics, "Main", curY, x, w, mouseX, mouseY, dt, alpha,
+                new String[]{"Combat", "Movement", "Player", "Visuals"},
+                new Category[]{Category.COMBAT, Category.MOVEMENT, Category.PLAYER, Category.RENDER}
         );
+
+        // Group 2: CLIENT
+        curY = renderNavSection(graphics, "Client", curY + 6.0f, x, w, mouseX, mouseY, dt, alpha,
+                new String[]{"Themes", "Configs"},
+                new Category[]{null, null}
+        );
+
+        // Group 3: OTHER
+        curY = renderNavSection(graphics, "Other", curY + 6.0f, x, w, mouseX, mouseY, dt, alpha,
+                new String[]{"Favorites", "Friends"},
+                new Category[]{null, null}
+        );
+
+        // Bottom User Profile Card
+        float profY = winY + WIN_HEIGHT - 44.0f;
+        float avatarX = x + 14.0f;
+        float avatarY = profY + 3.0f;
+        float avatarSize = 24.0f;
+
+        // Circular avatar with cyan/purple gradient
+        GlassRenderUtil.fillGradientRoundedRect(graphics, avatarX, avatarY, avatarSize, avatarSize, avatarSize / 2.0f, applyAlpha(0xFF0284C7, alpha), applyAlpha(0xFF6366F1, alpha));
+        GlassRenderUtil.drawRoundedOutline(graphics, (int) avatarX, (int) avatarY, (int) avatarSize, (int) avatarSize, (int) (avatarSize / 2.0f), 1.0f, applyAlpha(0xFF38BDF8, alpha));
+
+        // Inner initial
+        String username = Minecraft.getInstance().player != null ? Minecraft.getInstance().player.getGameProfile().getName() : System.getProperty("user.name", "Username_1");
+        String initial = username.isEmpty() ? "U" : username.substring(0, 1).toUpperCase();
+        MsdfRenderer.renderCenteredText(Fonts.bold(), initial, 11.0f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), avatarX + avatarSize / 2.0f, avatarY + 7.0f, 0.0f);
+
+        // Username & Expiry date
+        MsdfRenderer.renderText(Fonts.bold(), username, 8.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), avatarX + avatarSize + 8.0f, profY + 5.0f, 0.0f);
+        MsdfRenderer.renderText(Fonts.regular(), "Till: 12.05.2027", 6.5f, applyAlpha(0xFF6B7280, alpha), graphics.pose().last().pose(), avatarX + avatarSize + 8.0f, profY + 17.0f, 0.0f);
+
+        // Purple spinner status ring
+        float ringX = x + w - 18.0f;
+        float ringY = profY + 14.0f;
+        drawSpinnerRing(graphics, ringX, ringY, 5.0f, applyAlpha(0xFFA78BFA, alpha));
+
+        // Vertical divider
+        float divX = winX + w;
+        GlassRenderUtil.fillRoundedRect(graphics, divX, winY + 10.0f, 1.0f, WIN_HEIGHT - 20.0f, 0.5f, applyAlpha(0xFF181820, alpha));
     }
 
-    private void renderMusicIcon(GuiGraphics graphics, float cx, float cy, float size, int color) {
-        float x = cx - size / 2.0f;
-        float y = cy - size / 2.0f;
-        // Vector double beamed music note ♫
-        // Left note head
-        GlassRenderUtil.fillRoundedRect(graphics, x, y + size - 3.5f, 3.2f, 2.8f, 1.4f, color);
-        // Right note head
-        GlassRenderUtil.fillRoundedRect(graphics, x + size - 3.2f, y + size - 4.5f, 3.2f, 2.8f, 1.4f, color);
-        // Left stem
-        GlassRenderUtil.fillRoundedRect(graphics, x + 2.2f, y + 1.0f, 1.1f, size - 4.0f, 0.5f, color);
-        // Right stem
-        GlassRenderUtil.fillRoundedRect(graphics, x + size - 1.0f, y, 1.1f, size - 4.0f, 0.5f, color);
-        // Top connecting beam
-        GlassRenderUtil.fillRoundedRect(graphics, x + 2.2f, y, size - 2.2f, 1.8f, 0.6f, color);
-    }
+    private float renderNavSection(GuiGraphics graphics, String header, float startY, float x, float w, int mouseX, int mouseY, float dt, float alpha, String[] items, Category[] categories) {
+        // Section Header Label
+        MsdfRenderer.renderText(Fonts.medium(), header, 6.5f, applyAlpha(0xFF6B7280, alpha), graphics.pose().last().pose(), x + 16.0f, startY, 0.0f);
+        float itemY = startY + 11.0f;
+        float itemH = 22.0f;
+        float itemW = w - 24.0f;
+        float itemX = x + 12.0f;
 
-    private void drawVectorChevron(GuiGraphics graphics, float cx, float cy, int color) {
-        // A crisp 7px wide modern downward chevron
-        GlassRenderUtil.fillRoundedRect(graphics, cx - 3.0f, cy - 1.5f, 2.0f, 1.2f, 0.5f, color);
-        GlassRenderUtil.fillRoundedRect(graphics, cx - 1.5f, cy - 0.5f, 2.0f, 1.2f, 0.5f, color);
-        GlassRenderUtil.fillRoundedRect(graphics, cx - 0.5f, cy + 0.5f, 1.0f, 1.2f, 0.5f, color);
-        GlassRenderUtil.fillRoundedRect(graphics, cx + 0.5f, cy - 0.5f, 2.0f, 1.2f, 0.5f, color);
-        GlassRenderUtil.fillRoundedRect(graphics, cx + 2.0f, cy - 1.5f, 2.0f, 1.2f, 0.5f, color);
-    }
+        for (int i = 0; i < items.length; i++) {
+            String name = items[i];
+            Category cat = categories[i];
+            boolean selected = selectedSubTab.equalsIgnoreCase(name);
+            boolean hovered = mouseX >= itemX && mouseX <= itemX + itemW && mouseY >= itemY && mouseY <= itemY + itemH;
 
-    private void renderSidebar(GuiGraphics graphics, float winX, float winY, int mouseX, int mouseY, float dt, float screenAlpha) {
-        float sidebarX = winX;
-        float sidebarW = SIDEBAR_WIDTH;
+            float hover = tabHoverMap.getOrDefault(name, 0.0f);
+            hover += ((hovered ? 1.0f : 0.0f) - hover) * (1.0f - (float) Math.exp(-dt * 16.0f));
+            tabHoverMap.put(name, hover);
 
-        // Visium Branding & Category Indicator Dot
-        int titleColor = applyAlpha(ThemeManager.getTitleColor(), screenAlpha);
-        MsdfRenderer.renderText(
-                Fonts.roundBold(),
-                "Visium",
-                12.5f,
-                titleColor,
-                graphics.pose().last().pose(),
-                sidebarX + 16.0f,
-                winY + 14.0f,
-                0.0f
-        );
+            if (selected) {
+                // Active container pill card matching Wayne DLC screenshot
+                GlassRenderUtil.fillRoundedRect(graphics, itemX, itemY, itemW, itemH, 6.0f, applyAlpha(0xFF181822, alpha));
+                GlassRenderUtil.drawRoundedOutline(graphics, (int) itemX, (int) itemY, (int) itemW, (int) itemH, 6, 0.6f, applyAlpha(0xFF282836, alpha));
+            } else if (hover > 0.01f) {
+                GlassRenderUtil.fillRoundedRect(graphics, itemX, itemY, itemW, itemH, 6.0f, applyAlpha(0xFF121218, alpha * hover));
+            }
 
-        // Glowing Category Dot
-        GlassRenderUtil.fillRoundedRect(
-                graphics,
-                sidebarX + 57.0f,
-                winY + 18.0f,
-                4.0f,
-                4.0f,
-                2.0f,
-                applyAlpha(currentCategory.getAccentColor(), screenAlpha)
-        );
+            // Category Icon glyph
+            int iconColor = selected ? 0xFFA78BFA : (hovered ? 0xFFCBD5E1 : 0xFF6B7280);
+            renderNavIcon(graphics, name, itemX + 8.0f, itemY + (itemH - 8.0f) / 2.0f, applyAlpha(iconColor, alpha));
 
-        // Version tag
-        MsdfRenderer.renderText(
-                Fonts.medium(),
-                "v1.0",
-                6.0f,
-                applyAlpha(0xFF60A5FA, screenAlpha),
-                graphics.pose().last().pose(),
-                sidebarX + 66.0f,
-                winY + 17.5f,
-                0.0f
-        );
+            // Category Title text
+            int textColor = selected ? 0xFFFFFFFF : (hovered ? 0xFFE2E8F0 : 0xFF9CA3AF);
+            MsdfRenderer.renderText(Fonts.medium(), name, 7.8f, applyAlpha(textColor, alpha), graphics.pose().last().pose(), itemX + 22.0f, itemY + (itemH - 7.8f * 0.72f) / 2.0f, 0.0f);
 
-        // Horizontal divider below branding
-        int divColor = ThemeManager.lerpColor(0x18FFFFFF, 0x1A000000, ThemeManager.getTransitionFactor());
-        GlassRenderUtil.fillRoundedRect(graphics, sidebarX + 12.0f, winY + 34.0f, sidebarW - 20.0f, 1.0f, 0.5f, applyAlpha(divColor, screenAlpha));
-
-        // Section label
-        MsdfRenderer.renderText(
-                Fonts.medium(),
-                "CATEGORIES",
-                5.5f,
-                applyAlpha(ThemeManager.getSecondaryTextColor(0.0f), screenAlpha),
-                graphics.pose().last().pose(),
-                sidebarX + 16.0f,
-                winY + 43.0f,
-                0.0f
-        );
-
-        // Category Vertical Stack
-        float catStartY = winY + 54.0f;
-        float catH = 26.0f;
-        float catSpacing = 4.0f;
-        float catW = sidebarW - 20.0f;
-        float catX = sidebarX + 10.0f;
-
-        Category[] categories = Category.values();
-        float targetPillY = catStartY + currentCategory.ordinal() * (catH + catSpacing);
-
-        // Initialize indicator position on first frame
-        if (indicatorY < 0.0f) {
-            indicatorY = targetPillY;
-        } else {
-            indicatorY += (targetPillY - indicatorY) * (1.0f - (float) Math.exp(-dt * 18.0f));
+            itemY += itemH + 2.0f;
         }
 
-        // Draw Sliding Glass Pill Indicator underneath active tab
-        int pillBg = ThemeManager.lerpColor(0x35FFFFFF, 0x3EFFFFFF, ThemeManager.getTransitionFactor());
-        GlassRenderUtil.fillRoundedRect(graphics, catX, indicatorY, catW, catH, 7, applyAlpha(pillBg, screenAlpha));
-        GlassRenderUtil.drawRoundedOutline(graphics, (int)catX, (int)indicatorY, (int)catW, (int)catH, 7, 0.5f, applyAlpha(ThemeManager.getGlassBorderColor(1.0f), screenAlpha));
+        return itemY;
+    }
 
-        float iconSize = 10.0f;
-        float iconGap = 6.0f;
-
-        for (Category cat : categories) {
-            float rowY = catStartY + cat.ordinal() * (catH + catSpacing);
-            boolean hovered = mouseX >= catX && mouseX <= catX + catW && mouseY >= rowY && mouseY <= rowY + catH;
-            boolean selected = (cat == currentCategory);
-
-            float catHover = catHoverMap.getOrDefault(cat, 0.0f);
-            catHover += ((hovered ? 1.0f : 0.0f) - catHover) * (1.0f - (float) Math.exp(-dt * 16.0f));
-            catHoverMap.put(cat, catHover);
-
-            int textColor = selected
-                    ? ThemeManager.getTitleColor()
-                    : ThemeManager.getSecondaryTextColor(catHover);
-            int normalIcon = ThemeManager.lerpColor(ThemeManager.getSecondaryTextColor(0.0f), ThemeManager.getTitleColor(), catHover);
-            int iconColor = selected ? cat.getAccentColor() : normalIcon;
-
-            float iconX = catX + 8.0f;
-            float iconY = rowY + (catH - iconSize) / 2.0f;
-
-            // Render category Lucide icon
-            drawTintedIcon(graphics, cat.getIconLocation(), iconX, iconY, iconSize, applyAlpha(iconColor, screenAlpha));
-
-            // Render category title text
-            MsdfRenderer.renderText(
-                    Fonts.medium(),
-                    cat.getDisplayName(),
-                    8.0f,
-                    applyAlpha(textColor, screenAlpha),
-                    graphics.pose().last().pose(),
-                    iconX + iconSize + iconGap,
-                    rowY + (catH - 8.0f * 0.72f) / 2.0f,
-                    0.0f
-            );
-
-            // Active modules indicator dot
-            boolean hasActive = ModuleManager.getInstance().getModulesByCategory(cat).stream().anyMatch(Module::isEnabled);
-            if (hasActive) {
-                GlassRenderUtil.fillRoundedRect(graphics, catX + catW - 7.0f, rowY + (catH - 3.5f) / 2.0f, 3.5f, 3.5f, 1.75f, applyAlpha(0xFF10B981, screenAlpha));
+    private void renderNavIcon(GuiGraphics graphics, String name, float x, float y, int color) {
+        switch (name.toLowerCase()) {
+            case "combat" -> {
+                // Crossed swords
+                GlassRenderUtil.fillRoundedRect(graphics, x, y, 7.0f, 1.2f, 0.6f, color);
+                GlassRenderUtil.fillRoundedRect(graphics, x, y + 6.0f, 7.0f, 1.2f, 0.6f, color);
+                GlassRenderUtil.fillRoundedRect(graphics, x + 3.0f, y - 1.0f, 1.2f, 9.0f, 0.6f, color);
+            }
+            case "movement" -> {
+                // Compass / 4-way arrow
+                GlassRenderUtil.fillRoundedRect(graphics, x + 3.0f, y, 1.5f, 7.5f, 0.7f, color);
+                GlassRenderUtil.fillRoundedRect(graphics, x, y + 3.0f, 7.5f, 1.5f, 0.7f, color);
+            }
+            case "player" -> {
+                // Person head and torso
+                GlassRenderUtil.fillRoundedRect(graphics, x + 2.0f, y, 3.5f, 3.5f, 1.75f, color);
+                GlassRenderUtil.fillRoundedRect(graphics, x, y + 4.5f, 7.5f, 3.0f, 1.0f, color);
+            }
+            case "visuals" -> {
+                // Eye / diamond
+                GlassRenderUtil.fillRoundedRect(graphics, x + 1.0f, y + 2.0f, 6.0f, 4.0f, 2.0f, color);
+                GlassRenderUtil.fillRoundedRect(graphics, x + 3.0f, y + 3.0f, 2.0f, 2.0f, 1.0f, 0xFF0D0D12);
+            }
+            case "themes" -> {
+                // Palette
+                GlassRenderUtil.fillRoundedRect(graphics, x, y, 7.5f, 7.5f, 3.5f, color);
+            }
+            default -> {
+                // Dot / bullet
+                GlassRenderUtil.fillRoundedRect(graphics, x + 2.0f, y + 2.0f, 3.5f, 3.5f, 1.75f, color);
             }
         }
-
-        // Active modules count at bottom of sidebar
-        long activeCount = ModuleManager.getInstance().getModules().stream().filter(Module::isEnabled).count();
-        MsdfRenderer.renderText(
-                Fonts.regular(),
-                activeCount + " active",
-                6.0f,
-                applyAlpha(0xFF6B7280, screenAlpha),
-                graphics.pose().last().pose(),
-                sidebarX + 16.0f,
-                winY + WIN_HEIGHT - 16.0f,
-                0.0f
-        );
-
-        // Vertical divider between sidebar and main area
-        float divX = winX + sidebarW + 2.0f;
-        GlassRenderUtil.fillRoundedRect(graphics, divX, winY + 12.0f, 1.0f, WIN_HEIGHT - 24.0f, 0.5f, applyAlpha(divColor, screenAlpha));
     }
 
-    private void renderMainHeader(GuiGraphics graphics, float mainX, float winY, float mainW, int mouseX, int mouseY, float dt, float screenAlpha) {
-        // Category Title & Subtitle
-        String catTitle = currentCategory.getDisplayName();
-        int titleColor = applyAlpha(ThemeManager.getTitleColor(), screenAlpha);
-        MsdfRenderer.renderText(
-                Fonts.roundBold(),
-                catTitle,
-                12.0f,
-                titleColor,
-                graphics.pose().last().pose(),
-                mainX + 2.0f,
-                winY + 12.0f,
-                0.0f
-        );
-
-        float titleW = Fonts.roundBold().getWidth(catTitle, 12.0f);
-        List<Module> mods = ModuleManager.getInstance().getModulesByCategory(currentCategory);
-        MsdfRenderer.renderText(
-                Fonts.regular(),
-                mods.size() + " modules",
-                6.5f,
-                applyAlpha(ThemeManager.getSecondaryTextColor(0.0f), screenAlpha),
-                graphics.pose().last().pose(),
-                mainX + 4.0f + titleW + 6.0f,
-                winY + 16.5f,
-                0.0f
-        );
-
-        // Right Header Controls: Media Player Toggle + Live Search Box
-        float btnSize = 21.0f;
-        float btnY = winY + 10.0f;
-
-        // Media Player Toggle Button (♫)
-        float musicBtnX = mainX + mainW - btnSize;
-        boolean hoverMusic = mouseX >= musicBtnX && mouseX <= musicBtnX + btnSize && mouseY >= btnY && mouseY <= btnY + btnSize;
-        int musicBg = showMediaPlayer
-                ? 0x403B82F6
-                : (hoverMusic ? 0x2AFFFFFF : 0x16FFFFFF);
-        GlassRenderUtil.fillRoundedRect(graphics, musicBtnX, btnY, btnSize, btnSize, 6.0f, applyAlpha(musicBg, screenAlpha));
-        int musicIconColor = showMediaPlayer ? 0xFF93C5FD : (hoverMusic ? 0xFFFFFFFF : 0xFF9CA3AF);
-        renderMusicIcon(graphics, musicBtnX + btnSize / 2.0f, btnY + btnSize / 2.0f, 10.0f, applyAlpha(musicIconColor, screenAlpha));
-
-        // Live Search Input Box with Lucide search icon
-        float searchX = musicBtnX - searchBoxWidth - 6.0f;
-        boolean hoverSearch = mouseX >= searchX && mouseX <= searchX + searchBoxWidth && mouseY >= btnY && mouseY <= btnY + btnSize;
-        int searchBg = (searchFocused || hoverSearch)
-                ? ThemeManager.lerpColor(0x35FFFFFF, 0x26000000, ThemeManager.getTransitionFactor())
-                : ThemeManager.lerpColor(0x20FFFFFF, 0x14000000, ThemeManager.getTransitionFactor());
-        GlassRenderUtil.fillRoundedRect(graphics, searchX, btnY, searchBoxWidth, btnSize, 6.0f, applyAlpha(searchBg, screenAlpha));
-        float sBorderAlpha = searchFocused ? 0.85f : (hoverSearch ? 0.5f : 0.2f);
-        GlassRenderUtil.drawRoundedOutline(graphics, (int) searchX, (int) btnY, (int) searchBoxWidth, (int) btnSize, 6, 0.5f, applyAlpha(ThemeManager.getGlassBorderColor(sBorderAlpha), screenAlpha));
-
-        // Lucide Magnifying Glass Icon
-        float sIconSize = 10.0f;
-        int sIconColor = searchFocused ? 0xFF60A5FA : ThemeManager.getSecondaryTextColor(hoverSearch ? 0.8f : 0.0f);
-        drawTintedIcon(graphics, SEARCH_ICON, searchX + 6.0f, btnY + (btnSize - sIconSize) / 2.0f, sIconSize, applyAlpha(sIconColor, screenAlpha));
-
-        // Search text / placeholder + caret
-        String queryDisplay = searchQuery.isEmpty() ? (searchFocused ? "" : "Search") : searchQuery;
-        if (searchFocused && ((System.currentTimeMillis() / 450) % 2 == 0)) {
-            queryDisplay += "|";
+    private void drawSpinnerRing(GuiGraphics graphics, float cx, float cy, float radius, int color) {
+        float angle = (System.currentTimeMillis() % 1200L) / 1200.0f * (float) (Math.PI * 2);
+        for (int i = 0; i < 6; i++) {
+            float a = angle + i * 0.45f;
+            float px = cx + (float) Math.cos(a) * radius;
+            float py = cy + (float) Math.sin(a) * radius;
+            float size = 1.0f + (i * 0.35f);
+            GlassRenderUtil.fillRoundedRect(graphics, px - size / 2.0f, py - size / 2.0f, size, size, size / 2.0f, color);
         }
-        int queryColor = searchQuery.isEmpty() ? ThemeManager.getSecondaryTextColor(0.0f) : ThemeManager.getTitleColor();
-        MsdfRenderer.renderText(Fonts.regular(), queryDisplay, 7.0f, applyAlpha(queryColor, screenAlpha), graphics.pose().last().pose(), searchX + 19.0f, btnY + (btnSize - 7.0f * 0.72f) / 2.0f, 0.0f);
+    }
 
-        // Clear '✕' button if query is not empty
+    private void renderTopBar(GuiGraphics graphics, float mainX, float winY, float mainW, int mouseX, int mouseY, float dt, float alpha) {
+        float barY = winY + 12.0f;
+
+        // Breadcrumb icon (home/folder)
+        GlassRenderUtil.fillRoundedRect(graphics, mainX, barY + 2.0f, 6.0f, 6.0f, 1.0f, applyAlpha(0xFF6B7280, alpha));
+
+        // Breadcrumb text: ClickGui
+        MsdfRenderer.renderText(Fonts.medium(), "ClickGui", 7.5f, applyAlpha(0xFF9CA3AF, alpha), graphics.pose().last().pose(), mainX + 9.0f, barY + 2.0f, 0.0f);
+
+        // Arrow →
+        MsdfRenderer.renderText(Fonts.bold(), "→", 7.5f, applyAlpha(0xFF4B5563, alpha), graphics.pose().last().pose(), mainX + 46.0f, barY + 2.0f, 0.0f);
+
+        // Crossed swords icon for active category
+        renderNavIcon(graphics, selectedSubTab, mainX + 57.0f, barY + 1.5f, applyAlpha(0xFFA78BFA, alpha));
+
+        // Category Name (bold white)
+        MsdfRenderer.renderText(Fonts.bold(), selectedSubTab, 7.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), mainX + 68.0f, barY + 2.0f, 0.0f);
+
+        // Search Bar (Right aligned)
+        float searchW = 120.0f;
+        float searchH = 20.0f;
+        float searchX = mainX + mainW - searchW;
+        float searchY = barY - 3.0f;
+
+        boolean searchHovered = mouseX >= searchX && mouseX <= searchX + searchW && mouseY >= searchY && mouseY <= searchY + searchH;
+        int searchBg = searchFocused ? 0xFF1C1C26 : (searchHovered ? 0xFF181820 : 0xFF14141A);
+        GlassRenderUtil.fillRoundedRect(graphics, searchX, searchY, searchW, searchH, 10.0f, applyAlpha(searchBg, alpha));
+        GlassRenderUtil.drawRoundedOutline(graphics, (int) searchX, (int) searchY, (int) searchW, (int) searchH, 10, 0.6f, applyAlpha(searchFocused ? 0xFF7C3AED : 0xFF242430, alpha));
+
+        String displayText = searchQuery.isEmpty() ? "Search..." : searchQuery;
+        int queryColor = searchQuery.isEmpty() ? 0xFF6B7280 : 0xFFFFFFFF;
+        MsdfRenderer.renderText(Fonts.regular(), displayText, 7.0f, applyAlpha(queryColor, alpha), graphics.pose().last().pose(), searchX + 10.0f, searchY + 6.0f, 0.0f);
+
+        // Magnifying glass icon on right
+        float magX = searchX + searchW - 14.0f;
+        float magY = searchY + 6.0f;
+        GlassRenderUtil.fillRoundedRect(graphics, magX, magY, 5.0f, 5.0f, 2.5f, applyAlpha(0xFF6B7280, alpha));
+        GlassRenderUtil.fillRoundedRect(graphics, magX + 4.0f, magY + 4.0f, 3.5f, 1.2f, 0.6f, applyAlpha(0xFF6B7280, alpha));
+    }
+
+    private void renderContent(GuiGraphics graphics, float mainX, float contentY, float mainW, float contentH, int mouseX, int mouseY, float dt, float alpha) {
+        // Filter modules by category or search query
+        List<Module> visibleModules;
         if (!searchQuery.isEmpty()) {
-            float clearX = searchX + searchBoxWidth - 11.0f;
-            boolean hoverClear = mouseX >= clearX - 3 && mouseX <= clearX + 8 && mouseY >= btnY && mouseY <= btnY + btnSize;
-            int clearCol = hoverClear ? 0xFFEF4444 : ThemeManager.getSecondaryTextColor(0.0f);
-            MsdfRenderer.renderText(Fonts.medium(), "✕", 6.0f, applyAlpha(clearCol, screenAlpha), graphics.pose().last().pose(), clearX, btnY + (btnSize - 6.0f * 0.72f) / 2.0f, 0.0f);
-        }
-
-        // Header glass divider line
-        int divColor = ThemeManager.lerpColor(0x18FFFFFF, 0x1A000000, ThemeManager.getTransitionFactor());
-        GlassRenderUtil.fillRoundedRect(graphics, mainX, winY + 34.0f, mainW, 1.0f, 0.5f, applyAlpha(divColor, screenAlpha));
-    }
-
-    private void renderModules(GuiGraphics graphics, float mainX, float winY, float mainW, int mouseX, int mouseY, float dt, float screenAlpha) {
-        List<Module> modules;
-        if (!searchQuery.trim().isEmpty()) {
-            String q = searchQuery.trim().toLowerCase();
-            modules = ModuleManager.getInstance().getModules().stream()
+            String q = searchQuery.toLowerCase();
+            visibleModules = ModuleManager.getInstance().getModules().stream()
                     .filter(m -> m.getName().toLowerCase().contains(q) || m.getDescription().toLowerCase().contains(q))
                     .collect(Collectors.toList());
         } else {
-            modules = ModuleManager.getInstance().getModulesByCategory(currentCategory);
+            Category targetCategory = switch (selectedSubTab.toLowerCase()) {
+                case "combat" -> Category.COMBAT;
+                case "movement" -> Category.MOVEMENT;
+                case "player" -> Category.PLAYER;
+                case "visuals" -> Category.RENDER;
+                default -> null;
+            };
+
+            if (targetCategory != null) {
+                visibleModules = ModuleManager.getInstance().getModulesByCategory(targetCategory);
+            } else {
+                visibleModules = ModuleManager.getInstance().getModulesByCategory(Category.HUD);
+            }
         }
 
-        float contentX = mainX;
-        float contentY = winY + 40.0f;
-        float contentW = mainW;
-        float colWidth = (contentW - 10.0f) / 2.0f; // 2 column layout
-        float visibleH = WIN_HEIGHT - 48.0f;
+        // 2-Column Grid Dimensions
+        float colGap = 12.0f;
+        float colW = (mainW - colGap) / 2.0f;
+        float col1X = mainX;
+        float col2X = mainX + colW + colGap;
 
-        if (modules.isEmpty()) {
-            String noModMsg = "No modules found matching \"" + searchQuery + "\"";
-            MsdfRenderer.renderCenteredText(
-                    Fonts.medium(),
-                    noModMsg,
-                    8.5f,
-                    applyAlpha(ThemeManager.getSecondaryTextColor(0.0f), screenAlpha),
-                    graphics.pose().last().pose(),
-                    contentX + contentW / 2.0f,
-                    contentY + visibleH / 2.0f,
-                    0.0f
-            );
-            return;
-        }
+        // Scissor clip for smooth scrolling
+        int scaleFactor = (int) Minecraft.getInstance().getWindow().getGuiScale();
+        int scissorX = (int) (mainX * scaleFactor);
+        int scissorY = (int) ((this.height - (contentY + contentH)) * scaleFactor);
+        int scissorW = (int) (mainW * scaleFactor);
+        int scissorH = (int) (contentH * scaleFactor);
 
-        graphics.enableScissor(
-                (int) Math.floor(contentX - 2.0f),
-                (int) Math.floor(contentY - 2.0f),
-                (int) Math.ceil(contentX + contentW + 2.0f),
-                (int) Math.ceil(contentY + visibleH + 4.0f)
-        );
+        graphics.enableScissor(scissorX, scissorY, scissorX + scissorW, scissorY + scissorH);
 
-        float[] colY = new float[]{contentY + scrollY, contentY + scrollY};
+        float col1Y = contentY + scrollY;
+        float col2Y = contentY + scrollY;
 
-        for (int i = 0; i < modules.size(); i++) {
-            Module module = modules.get(i);
-            int col = i % 2;
-            float cardX = contentX + col * (colWidth + 10.0f);
-            float cardY = colY[col];
+        for (int i = 0; i < visibleModules.size(); i++) {
+            Module module = visibleModules.get(i);
+            boolean useCol1 = (col1Y <= col2Y);
+            float cardX = useCol1 ? col1X : col2X;
+            float cardY = useCol1 ? col1Y : col2Y;
 
-            float baseCardH = 44.0f;
-            float settingsH = calculateSettingsHeight(module);
-            float cardH = baseCardH + settingsH * module.getEasedExpand();
+            float cardHeight = calculateCardHeight(module);
+            renderModuleCard(graphics, module, cardX, cardY, colW, cardHeight, mouseX, mouseY, dt, alpha);
 
-            renderModuleCard(graphics, module, cardX, cardY, colWidth, cardH, baseCardH, mouseX, mouseY, dt, screenAlpha);
-
-            colY[col] += cardH + 8.0f;
+            if (useCol1) {
+                col1Y += cardHeight + 10.0f;
+            } else {
+                col2Y += cardHeight + 10.0f;
+            }
         }
 
         graphics.disableScissor();
 
-        float maxContentH = Math.max(colY[0], colY[1]) - (contentY + scrollY);
-        if (maxContentH > visibleH) {
-            targetScrollY = Math.max(visibleH - maxContentH, Math.min(0.0f, targetScrollY));
-        } else {
-            targetScrollY = 0.0f;
-        }
+        // Clamp scroll range
+        float maxContentH = Math.max(col1Y, col2Y) - (contentY + scrollY);
+        float minScroll = Math.min(0.0f, contentH - maxContentH - 20.0f);
+        targetScrollY = Math.max(minScroll, Math.min(0.0f, targetScrollY));
     }
 
-    private void renderMediaPlayer(GuiGraphics graphics, float winX, float winY, int mouseX, int mouseY, float dt, float alpha) {
-        MediaManager media = MediaManager.getInstance();
-        float cardW = WIN_WIDTH;
-        float cardH = 48.0f;
-        float cardX = winX;
-        float cardY = winY + WIN_HEIGHT + 8.0f;
-
-        if (cardY + cardH > this.height - 4.0f) {
-            cardY = this.height - cardH - 4.0f;
+    private float calculateCardHeight(Module module) {
+        float baseH = 34.0f;
+        if (!module.isExpanded() || module.getSettings().isEmpty()) {
+            return baseH;
         }
 
-        // Draw Liquid Glass Panel (Radius 12)
-        GlassRenderUtil.drawGlassPanel(graphics, (int) cardX, (int) cardY, (int) cardW, (int) cardH, 12, false, 0.0f);
-
-        // Left: Album Art Cover (32x32) with rounded corners
-        float coverSize = 32.0f;
-        float coverX = cardX + 9.0f;
-        float coverY = cardY + (cardH - coverSize) / 2.0f;
-
-        ResourceLocation coverLoc = media.getAlbumArtLocation();
-        boolean hasCover = (coverLoc != null);
-        if (hasCover) {
-            try {
-                Minecraft.getInstance().getTextureManager().getTexture(coverLoc).setFilter(true, false);
-            } catch (Exception ignored) {}
-            graphics.blit(
-                    RenderType::guiTextured,
-                    coverLoc,
-                    (int) coverX,
-                    (int) coverY,
-                    0.0f,
-                    0.0f,
-                    (int) coverSize,
-                    (int) coverSize,
-                    (int) coverSize,
-                    (int) coverSize,
-                    (int) coverSize,
-                    (int) coverSize
-            );
-            // Subtle glass hairline rim over the cover
-            GlassRenderUtil.drawRoundedOutline(graphics, (int) coverX, (int) coverY, (int) coverSize, (int) coverSize, 5, 0.5f, applyAlpha(ThemeManager.getGlassBorderColor(0.4f), alpha));
-        } else {
-            // Elegant frosted badge with animated vinyl icon
-            int iconBg = ThemeManager.lerpColor(0x30FFFFFF, 0x22000000, ThemeManager.getTransitionFactor());
-            GlassRenderUtil.fillRoundedRect(graphics, coverX, coverY, coverSize, coverSize, 7.0f, applyAlpha(iconBg, alpha));
-            GlassRenderUtil.drawRoundedOutline(graphics, (int) coverX, (int) coverY, (int) coverSize, (int) coverSize, 7, 0.5f, applyAlpha(ThemeManager.getGlassBorderColor(0.5f), alpha));
-
-            int noteColor = media.isPlaying() ? 0xFF3B82F6 : ThemeManager.getTitleColor();
-            MsdfRenderer.renderCenteredText(
-                    Fonts.medium(),
-                    "♫",
-                    12.0f,
-                    applyAlpha(noteColor, alpha),
-                    graphics.pose().last().pose(),
-                    coverX + coverSize / 2.0f,
-                    coverY + (coverSize - 12.0f * 0.72f) / 2.0f,
-                    0.0f
-            );
-        }
-
-        // Track Info next to album art
-        float titleX = coverX + coverSize + 9.0f;
-        String title = media.getTitle();
-        float maxTitleW = 120.0f;
-        String displayTitle = Fonts.medium().getWidth(title, 8.0f) > maxTitleW ? title.substring(0, Math.min(title.length(), 18)) + "..." : title;
-        MsdfRenderer.renderText(
-                Fonts.medium(),
-                displayTitle,
-                8.0f,
-                applyAlpha(ThemeManager.getTitleColor(), alpha),
-                graphics.pose().last().pose(),
-                titleX,
-                cardY + 12.0f,
-                0.0f
-        );
-
-        String artist = media.getArtist();
-        String albumOrSource = !media.getAlbum().isEmpty() ? media.getAlbum() : media.getPlayerName();
-        String artistLine = artist + " • " + albumOrSource;
-        String displayArtist = Fonts.regular().getWidth(artistLine, 6.5f) > maxTitleW + 20.0f ? artist.substring(0, Math.min(artist.length(), 15)) + " • " + albumOrSource : artistLine;
-        MsdfRenderer.renderText(
-                Fonts.regular(),
-                displayArtist,
-                6.5f,
-                applyAlpha(ThemeManager.getSecondaryTextColor(0.0f), alpha),
-                graphics.pose().last().pose(),
-                titleX,
-                cardY + 25.5f,
-                0.0f
-        );
-
-        // Center: Transport Controls & Scrub Bar
-        float ctrlCenterX = cardX + cardW / 2.0f + 15.0f;
-        float ctrlBtnY = cardY + 7.0f;
-
-        // Previous button with SKIP_BACK_ICON (Lucide skip-back)
-        float prevSize = 20.0f;
-        float prevX = ctrlCenterX - 36.0f;
-        float prevY = ctrlBtnY - 1.0f;
-        boolean hoverPrev = mouseX >= prevX && mouseX <= prevX + prevSize && mouseY >= prevY && mouseY <= prevY + prevSize;
-        prevHoverAnim += ((hoverPrev ? 1.0f : 0.0f) - prevHoverAnim) * (1.0f - (float) Math.exp(-dt * 18.0f));
-
-        float prevScale = (1.0f + prevHoverAnim * 0.10f) - (float) Math.sin(prevBounce * Math.PI) * 0.16f;
-        graphics.pose().pushPose();
-        graphics.pose().translate(prevX + prevSize / 2.0f, prevY + prevSize / 2.0f, 0.0f);
-        graphics.pose().scale(prevScale, prevScale, 1.0f);
-        graphics.pose().translate(-(prevX + prevSize / 2.0f), -(prevY + prevSize / 2.0f), 0.0f);
-
-        if (prevHoverAnim > 0.01f) {
-            GlassRenderUtil.fillRoundedRect(graphics, prevX, prevY, prevSize, prevSize, 5.0f, applyAlpha(0x28FFFFFF, alpha * prevHoverAnim));
-            GlassRenderUtil.drawRoundedOutline(graphics, (int) prevX, (int) prevY, (int) prevSize, (int) prevSize, 5, 0.5f, applyAlpha(ThemeManager.getGlassBorderColor(0.5f), alpha * prevHoverAnim));
-        }
-        try {
-            Minecraft.getInstance().getTextureManager().getTexture(SKIP_BACK_ICON).setFilter(true, false);
-        } catch (Exception ignored) {}
-        float prevIconSize = 12.0f;
-        graphics.blit(
-                RenderType::guiTextured,
-                SKIP_BACK_ICON,
-                (int) (prevX + (prevSize - prevIconSize) / 2.0f),
-                (int) (prevY + (prevSize - prevIconSize) / 2.0f),
-                0.0f,
-                0.0f,
-                (int) prevIconSize,
-                (int) prevIconSize,
-                128,
-                128,
-                128,
-                128
-        );
-        graphics.pose().popPose();
-
-        // Play / Pause button with PLAY_ICON / PAUSE_ICON (Lucide play / pause)
-        float playSize = 22.0f;
-        float playX = ctrlCenterX - playSize / 2.0f;
-        float playY = ctrlBtnY - 2.0f;
-        boolean hoverPlay = mouseX >= playX && mouseX <= playX + playSize && mouseY >= playY && mouseY <= playY + playSize;
-        playHoverAnim += ((hoverPlay ? 1.0f : 0.0f) - playHoverAnim) * (1.0f - (float) Math.exp(-dt * 18.0f));
-
-        float playScale = (1.0f + playHoverAnim * 0.10f) - (float) Math.sin(playBounce * Math.PI) * 0.18f;
-        graphics.pose().pushPose();
-        graphics.pose().translate(playX + playSize / 2.0f, playY + playSize / 2.0f, 0.0f);
-        graphics.pose().scale(playScale, playScale, 1.0f);
-        graphics.pose().translate(-(playX + playSize / 2.0f), -(playY + playSize / 2.0f), 0.0f);
-
-        int playBg = hoverPlay
-                ? ThemeManager.lerpColor(0x48FFFFFF, 0x38000000, ThemeManager.getTransitionFactor())
-                : ThemeManager.lerpColor(0x28FFFFFF, 0x1A000000, ThemeManager.getTransitionFactor());
-        if (playHoverAnim > 0.01f) {
-            playBg = ThemeManager.lerpColor(playBg, 0x483B82F6, playHoverAnim * 0.65f);
-        }
-        GlassRenderUtil.fillRoundedRect(graphics, playX, playY, playSize, playSize, playSize / 2.0f, applyAlpha(playBg, alpha));
-        GlassRenderUtil.drawRoundedOutline(graphics, (int) playX, (int) playY, (int) playSize, (int) playSize, (int)(playSize / 2.0f), 0.5f, applyAlpha(ThemeManager.getGlassBorderColor(0.4f + playHoverAnim * 0.5f), alpha));
-
-        ResourceLocation playPauseIcon = media.isPlaying() ? PAUSE_ICON : PLAY_ICON;
-        try {
-            Minecraft.getInstance().getTextureManager().getTexture(playPauseIcon).setFilter(true, false);
-        } catch (Exception ignored) {}
-        float pIconSize = 12.0f;
-        float pIconOffX = media.isPlaying() ? 0.0f : 0.6f;
-        graphics.blit(
-                RenderType::guiTextured,
-                playPauseIcon,
-                (int) (playX + (playSize - pIconSize) / 2.0f + pIconOffX),
-                (int) (playY + (playSize - pIconSize) / 2.0f),
-                0.0f,
-                0.0f,
-                (int) pIconSize,
-                (int) pIconSize,
-                128,
-                128,
-                128,
-                128
-        );
-        graphics.pose().popPose();
-
-        // Next button with SKIP_FORWARD_ICON (Lucide skip-forward)
-        float nextSize = 20.0f;
-        float nextX = ctrlCenterX + 16.0f;
-        float nextY = ctrlBtnY - 1.0f;
-        boolean hoverNext = mouseX >= nextX && mouseX <= nextX + nextSize && mouseY >= nextY && mouseY <= nextY + nextSize;
-        nextHoverAnim += ((hoverNext ? 1.0f : 0.0f) - nextHoverAnim) * (1.0f - (float) Math.exp(-dt * 18.0f));
-
-        float nextScale = (1.0f + nextHoverAnim * 0.10f) - (float) Math.sin(nextBounce * Math.PI) * 0.16f;
-        graphics.pose().pushPose();
-        graphics.pose().translate(nextX + nextSize / 2.0f, nextY + nextSize / 2.0f, 0.0f);
-        graphics.pose().scale(nextScale, nextScale, 1.0f);
-        graphics.pose().translate(-(nextX + nextSize / 2.0f), -(nextY + nextSize / 2.0f), 0.0f);
-
-        if (nextHoverAnim > 0.01f) {
-            GlassRenderUtil.fillRoundedRect(graphics, nextX, nextY, nextSize, nextSize, 5.0f, applyAlpha(0x28FFFFFF, alpha * nextHoverAnim));
-            GlassRenderUtil.drawRoundedOutline(graphics, (int) nextX, (int) nextY, (int) nextSize, (int) nextSize, 5, 0.5f, applyAlpha(ThemeManager.getGlassBorderColor(0.5f), alpha * nextHoverAnim));
-        }
-        try {
-            Minecraft.getInstance().getTextureManager().getTexture(SKIP_FORWARD_ICON).setFilter(true, false);
-        } catch (Exception ignored) {}
-        float nextIconSize = 12.0f;
-        graphics.blit(
-                RenderType::guiTextured,
-                SKIP_FORWARD_ICON,
-                (int) (nextX + (nextSize - nextIconSize) / 2.0f),
-                (int) (nextY + (nextSize - nextIconSize) / 2.0f),
-                0.0f,
-                0.0f,
-                (int) nextIconSize,
-                (int) nextIconSize,
-                128,
-                128,
-                128,
-                128
-        );
-        graphics.pose().popPose();
-
-        // Quick Skip -10s indicator with tactile spring & pill badge
-        float skip10PrevX = ctrlCenterX - 56.0f;
-        float skip10PillW = 17.0f;
-        float skip10PillH = 12.0f;
-        float skip10Y = ctrlBtnY + 3.0f;
-        boolean hoverSkip10Prev = mouseX >= skip10PrevX && mouseX <= skip10PrevX + skip10PillW && mouseY >= skip10Y && mouseY <= skip10Y + skip10PillH;
-        skip10PrevHoverAnim += ((hoverSkip10Prev ? 1.0f : 0.0f) - skip10PrevHoverAnim) * (1.0f - (float) Math.exp(-dt * 18.0f));
-
-        float skip10PrevScale = (1.0f + skip10PrevHoverAnim * 0.12f) - (float) Math.sin(skip10PrevBounce * Math.PI) * 0.18f;
-        graphics.pose().pushPose();
-        graphics.pose().translate(skip10PrevX + skip10PillW / 2.0f, skip10Y + skip10PillH / 2.0f, 0.0f);
-        graphics.pose().scale(skip10PrevScale, skip10PrevScale, 1.0f);
-        graphics.pose().translate(-(skip10PrevX + skip10PillW / 2.0f), -(skip10Y + skip10PillH / 2.0f), 0.0f);
-
-        int pillPrevBg = ThemeManager.lerpColor(0x14FFFFFF, 0x10000000, ThemeManager.getTransitionFactor());
-        if (skip10PrevHoverAnim > 0.01f) {
-            pillPrevBg = ThemeManager.lerpColor(pillPrevBg, 0x383B82F6, skip10PrevHoverAnim);
-        }
-        GlassRenderUtil.fillRoundedRect(graphics, skip10PrevX, skip10Y, skip10PillW, skip10PillH, 3.5f, applyAlpha(pillPrevBg, alpha));
-        GlassRenderUtil.drawRoundedOutline(graphics, (int) skip10PrevX, (int) skip10Y, (int) skip10PillW, (int) skip10PillH, 3, 0.5f, applyAlpha(ThemeManager.getGlassBorderColor(0.2f + skip10PrevHoverAnim * 0.5f), alpha));
-
-        MsdfRenderer.renderCenteredText(
-                Fonts.medium(),
-                "-10",
-                5.5f,
-                applyAlpha(skip10PrevHoverAnim > 0.1f ? 0xFF93C5FD : ThemeManager.getSecondaryTextColor(0.0f), alpha),
-                graphics.pose().last().pose(),
-                skip10PrevX + skip10PillW / 2.0f,
-                skip10Y + (skip10PillH - 5.5f * 0.72f) / 2.0f,
-                0.0f
-        );
-        graphics.pose().popPose();
-
-        // Quick Skip +10s indicator with tactile spring & pill badge
-        float skip10NextX = ctrlCenterX + 39.0f;
-        boolean hoverSkip10Next = mouseX >= skip10NextX && mouseX <= skip10NextX + skip10PillW && mouseY >= skip10Y && mouseY <= skip10Y + skip10PillH;
-        skip10NextHoverAnim += ((hoverSkip10Next ? 1.0f : 0.0f) - skip10NextHoverAnim) * (1.0f - (float) Math.exp(-dt * 18.0f));
-
-        float skip10NextScale = (1.0f + skip10NextHoverAnim * 0.12f) - (float) Math.sin(skip10NextBounce * Math.PI) * 0.18f;
-        graphics.pose().pushPose();
-        graphics.pose().translate(skip10NextX + skip10PillW / 2.0f, skip10Y + skip10PillH / 2.0f, 0.0f);
-        graphics.pose().scale(skip10NextScale, skip10NextScale, 1.0f);
-        graphics.pose().translate(-(skip10NextX + skip10PillW / 2.0f), -(skip10Y + skip10PillH / 2.0f), 0.0f);
-
-        int pillNextBg = ThemeManager.lerpColor(0x14FFFFFF, 0x10000000, ThemeManager.getTransitionFactor());
-        if (skip10NextHoverAnim > 0.01f) {
-            pillNextBg = ThemeManager.lerpColor(pillNextBg, 0x383B82F6, skip10NextHoverAnim);
-        }
-        GlassRenderUtil.fillRoundedRect(graphics, skip10NextX, skip10Y, skip10PillW, skip10PillH, 3.5f, applyAlpha(pillNextBg, alpha));
-        GlassRenderUtil.drawRoundedOutline(graphics, (int) skip10NextX, (int) skip10Y, (int) skip10PillW, (int) skip10PillH, 3, 0.5f, applyAlpha(ThemeManager.getGlassBorderColor(0.2f + skip10NextHoverAnim * 0.5f), alpha));
-
-        MsdfRenderer.renderCenteredText(
-                Fonts.medium(),
-                "+10",
-                5.5f,
-                applyAlpha(skip10NextHoverAnim > 0.1f ? 0xFF93C5FD : ThemeManager.getSecondaryTextColor(0.0f), alpha),
-                graphics.pose().last().pose(),
-                skip10NextX + skip10PillW / 2.0f,
-                skip10Y + (skip10PillH - 5.5f * 0.72f) / 2.0f,
-                0.0f
-        );
-        graphics.pose().popPose();
-
-        // Interactive Scrub Bar with Timestamps & Fluid Animations
-        float scrubY = cardY + 31.0f;
-        float scrubW = 160.0f;
-        float scrubX = ctrlCenterX - scrubW / 2.0f;
-
-        // Position text
-        String posStr = media.getFormattedPosition();
-        MsdfRenderer.renderText(
-                Fonts.regular(),
-                posStr,
-                6.0f,
-                applyAlpha(ThemeManager.getSecondaryTextColor(0.0f), alpha),
-                graphics.pose().last().pose(),
-                scrubX - Fonts.regular().getWidth(posStr, 6.0f) - 6.0f,
-                scrubY - 1.5f,
-                0.0f
-        );
-
-        // Duration text
-        String durStr = media.getFormattedDuration();
-        MsdfRenderer.renderText(
-                Fonts.regular(),
-                durStr,
-                6.0f,
-                applyAlpha(ThemeManager.getSecondaryTextColor(0.0f), alpha),
-                graphics.pose().last().pose(),
-                scrubX + scrubW + 6.0f,
-                scrubY - 1.5f,
-                0.0f
-        );
-
-        // Scrub track with hover expansion
-        boolean hoverScrub = mouseX >= scrubX - 4.0f && mouseX <= scrubX + scrubW + 4.0f && mouseY >= scrubY - 5.0f && mouseY <= scrubY + 9.0f;
-        scrubHoverAnim += (((hoverScrub || isDraggingScrubber) ? 1.0f : 0.0f) - scrubHoverAnim) * (1.0f - (float) Math.exp(-dt * 18.0f));
-
-        float trackH = 3.0f + scrubHoverAnim * 1.5f;
-        float trackDrawY = scrubY + (3.0f - trackH) / 2.0f;
-        GlassRenderUtil.fillRoundedRect(graphics, scrubX, trackDrawY, scrubW, trackH, trackH / 2.0f, applyAlpha(0x22FFFFFF, alpha));
-
-        // Smooth Progress Fill
-        float fillW = scrubW * Math.max(0.0f, Math.min(1.0f, smoothProgress));
-        if (fillW > 0.5f) {
-            GlassRenderUtil.fillRoundedRect(graphics, scrubX, trackDrawY, fillW, trackH, trackH / 2.0f, applyAlpha(0xFF3B82F6, alpha));
-        }
-
-        // Rewind Wave Animation Sweep (Reverse Energy Pulse & Chevrons)
-        if (rewindWaveAnim > 0.01f && fillW > 4.0f) {
-            float waveT = rewindWaveAnim; // 1.0 down to 0.0
-            float waveHeadX = scrubX + fillW * waveT;
-            float waveLen = Math.min(26.0f, fillW);
-            float waveLeft = Math.max(scrubX, waveHeadX - waveLen * 0.5f);
-            float waveRight = Math.min(scrubX + fillW, waveHeadX + waveLen * 0.5f);
-            if (waveRight > waveLeft) {
-                GlassRenderUtil.fillRoundedRect(graphics, waveLeft, trackDrawY - 0.5f, waveRight - waveLeft, trackH + 1.0f, (trackH + 1.0f) / 2.0f, applyAlpha(0xEE60A5FA, alpha * rewindWaveAnim));
-            }
-
-            // Floating rewind chevrons drifting smoothly leftward
-            float drift = (1.0f - rewindWaveAnim) * 16.0f;
-            MsdfRenderer.renderCenteredText(
-                    Fonts.medium(),
-                    "« «",
-                    6.0f,
-                    applyAlpha(0xFF60A5FA, alpha * rewindWaveAnim),
-                    graphics.pose().last().pose(),
-                    scrubX + fillW * 0.5f - drift,
-                    scrubY - 8.0f,
-                    0.0f
-            );
-        }
-
-        // Forward Wave Animation Sweep (Forward Energy Pulse & Chevrons)
-        if (forwardWaveAnim > 0.01f && fillW > 4.0f) {
-            float waveT = 1.0f - forwardWaveAnim; // 0.0 to 1.0
-            float waveHeadX = scrubX + fillW * waveT;
-            float waveLen = Math.min(26.0f, fillW);
-            float waveLeft = Math.max(scrubX, waveHeadX - waveLen * 0.5f);
-            float waveRight = Math.min(scrubX + fillW, waveHeadX + waveLen * 0.5f);
-            if (waveRight > waveLeft) {
-                GlassRenderUtil.fillRoundedRect(graphics, waveLeft, trackDrawY - 0.5f, waveRight - waveLeft, trackH + 1.0f, (trackH + 1.0f) / 2.0f, applyAlpha(0xEE93C5FD, alpha * forwardWaveAnim));
-            }
-
-            // Floating forward chevrons drifting smoothly rightward
-            float drift = (1.0f - forwardWaveAnim) * 16.0f;
-            MsdfRenderer.renderCenteredText(
-                    Fonts.medium(),
-                    "» »",
-                    6.0f,
-                    applyAlpha(0xFF93C5FD, alpha * forwardWaveAnim),
-                    graphics.pose().last().pose(),
-                    scrubX + fillW * 0.5f + drift,
-                    scrubY - 8.0f,
-                    0.0f
-            );
-        }
-
-        // Animated Thumb Knob with Glow Halo
-        if (fillW > 0.5f) {
-            float thumbR = 2.5f + scrubHoverAnim * 1.5f;
-            float thumbX = scrubX + fillW;
-            float thumbY = trackDrawY + trackH / 2.0f;
-
-            if (scrubHoverAnim > 0.02f) {
-                float haloR = thumbR + 2.5f;
-                GlassRenderUtil.fillRoundedRect(graphics, thumbX - haloR, thumbY - haloR, haloR * 2.0f, haloR * 2.0f, haloR, applyAlpha(0x353B82F6, alpha * scrubHoverAnim));
-            }
-            GlassRenderUtil.fillRoundedRect(graphics, thumbX - thumbR, thumbY - thumbR, thumbR * 2.0f, thumbR * 2.0f, thumbR, applyAlpha(0xFFFFFFFF, alpha));
-        }
-
-        // Scrub Hover Time Tooltip
-        if (scrubHoverAnim > 0.05f && hoverScrub) {
-            float hoverProg = Math.max(0.0f, Math.min(1.0f, ((float) mouseX - scrubX) / scrubW));
-            long hoverMs = (long) (media.getDurationMs() * hoverProg);
-            String hoverTimeStr = String.format("%d:%02d", (hoverMs / 60000), (hoverMs / 1000) % 60);
-
-            float pillW = Fonts.medium().getWidth(hoverTimeStr, 6.0f) + 8.0f;
-            float pillH = 11.0f;
-            float pillX = Math.max(scrubX, Math.min(scrubX + scrubW - pillW, (float) mouseX - pillW / 2.0f));
-            float pillY = trackDrawY - pillH - 4.0f - scrubHoverAnim * 2.0f;
-
-            GlassRenderUtil.fillRoundedRect(graphics, pillX, pillY, pillW, pillH, 3.5f, applyAlpha(0xE01E293B, alpha * scrubHoverAnim));
-            GlassRenderUtil.drawRoundedOutline(graphics, (int) pillX, (int) pillY, (int) pillW, (int) pillH, 3, 0.5f, applyAlpha(0x30FFFFFF, alpha * scrubHoverAnim));
-            MsdfRenderer.renderCenteredText(
-                    Fonts.medium(),
-                    hoverTimeStr,
-                    6.0f,
-                    applyAlpha(0xFFFFFFFF, alpha * scrubHoverAnim),
-                    graphics.pose().last().pose(),
-                    pillX + pillW / 2.0f,
-                    pillY + (pillH - 6.0f * 0.72f) / 2.0f,
-                    0.0f
-            );
-        }
-
-        // Right: Animated Audio Spectrum Bars & Source Tag
-        float[] bars = media.getSpectrumBars();
-        float barW = 3.0f;
-        float barSpacing = 2.5f;
-        float totalBarsW = bars.length * barW + (bars.length - 1) * barSpacing;
-        float specX = cardX + cardW - totalBarsW - 16.0f;
-        float specCenterY = cardY + cardH / 2.0f;
-        float maxBarH = 20.0f;
-
-        for (int i = 0; i < bars.length; i++) {
-            float bH = Math.max(3.0f, bars[i] * maxBarH);
-            float bX = specX + i * (barW + barSpacing);
-            float bY = specCenterY - bH / 2.0f;
-            int barColor = ThemeManager.lerpColor(0xFF3B82F6, 0xFF60A5FA, bars[i]);
-            GlassRenderUtil.fillRoundedRect(graphics, bX, bY, barW, bH, 1.5f, applyAlpha(barColor, alpha));
-        }
-    }
-
-    private float calculateSettingsHeight(Module module) {
-        float h = 26.0f; // divider + keybind row
+        float settingsH = 6.0f;
         for (Setting<?> s : module.getSettings()) {
-            if (s instanceof NumberSetting) h += 26.0f;
-            else if (s instanceof BooleanSetting) h += 18.0f;
-            else if (s instanceof ModeSetting) h += 20.0f;
+            settingsH += 21.0f;
         }
-        return h + 6.0f; // bottom padding
+        // Include keybind setting row if expanded
+        settingsH += 21.0f;
+
+        return baseH + settingsH * module.getExpandProgress();
     }
 
-    private void renderModuleCard(GuiGraphics graphics, Module module, float cardX, float cardY, float cardW, float cardH, float baseCardH, int mouseX, int mouseY, float dt, float screenAlpha) {
-        boolean hovered = mouseX >= cardX && mouseX <= cardX + cardW && mouseY >= cardY && mouseY <= cardY + baseCardH;
+    private void renderModuleCard(GuiGraphics graphics, Module module, float x, float y, float w, float h, int mouseX, int mouseY, float dt, float alpha) {
+        // Card Background (Obsidian #131317 with 12px radius)
+        GlassRenderUtil.fillRoundedRect(graphics, x, y, w, h, 12.0f, applyAlpha(0xFF131317, alpha));
+        GlassRenderUtil.drawRoundedOutline(graphics, (int) x, (int) y, (int) w, (int) h, 12, 0.6f, applyAlpha(0xFF1C1C22, alpha));
 
-        // Smooth hover progress interpolation
-        float currentHover = moduleHoverMap.getOrDefault(module, 0.0f);
-        float targetHover = hovered ? 1.0f : 0.0f;
-        currentHover += (targetHover - currentHover) * (1.0f - (float) Math.exp(-dt * 14.0f));
-        moduleHoverMap.put(module, currentHover);
+        // 1. Keybind Badge on Left
+        float badgeX = x + 10.0f;
+        float badgeY = y + 8.0f;
+        float badgeSize = 18.0f;
+        boolean isBindingThis = (bindingModule == module);
+        int badgeBg = isBindingThis ? 0xFF8B5CF6 : (module.getKeybind() != GLFW.GLFW_KEY_UNKNOWN ? 0xFF2A2338 : 0xFF202028);
+        GlassRenderUtil.fillRoundedRect(graphics, badgeX, badgeY, badgeSize, badgeSize, 4.0f, applyAlpha(badgeBg, alpha));
 
-        int cardBg = ThemeManager.lerpColor(0x16FFFFFF, 0x0E000000, ThemeManager.getTransitionFactor());
-        if (module.isEnabled()) {
-            cardBg = ThemeManager.lerpColor(0x28FFFFFF, 0x1A000000, ThemeManager.getTransitionFactor());
-        }
+        String keyText = isBindingThis ? "..." : (module.getKeybind() != GLFW.GLFW_KEY_UNKNOWN ? getKeyInitial(module.getKeybind()) : "—");
+        int keyColor = isBindingThis ? 0xFFFFFFFF : (module.getKeybind() != GLFW.GLFW_KEY_UNKNOWN ? 0xFFA78BFA : 0xFF6B7280);
+        MsdfRenderer.renderCenteredText(Fonts.bold(), keyText, 7.5f, applyAlpha(keyColor, alpha), graphics.pose().last().pose(), badgeX + badgeSize / 2.0f, badgeY + 5.0f, 0.0f);
 
-        // Frosted card tile (Radius 10)
-        GlassRenderUtil.fillRoundedRect(graphics, cardX, cardY, cardW, cardH, 10, applyAlpha(cardBg, screenAlpha));
+        // 2. Module Name (bold white)
+        MsdfRenderer.renderText(Fonts.bold(), module.getName(), 8.8f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), x + 34.0f, y + 13.0f, 0.0f);
 
-        // Smooth hairline border illumination on hover or when enabled
-        float borderAlpha = Math.max(currentHover, module.isEnabled() ? 0.35f : 0.0f);
-        if (borderAlpha > 0.01f) {
-            GlassRenderUtil.drawRoundedOutline(
-                    graphics,
-                    (int)cardX,
-                    (int)cardY,
-                    (int)cardW,
-                    (int)cardH,
-                    10,
-                    0.5f,
-                    applyAlpha(ThemeManager.getGlassBorderColor(borderAlpha), screenAlpha)
-            );
-        }
+        // 3. Settings Gear Icon
+        float gearX = x + w - 46.0f;
+        float gearY = y + 11.0f;
+        boolean gearHovered = mouseX >= gearX - 3.0f && mouseX <= gearX + 15.0f && mouseY >= gearY - 3.0f && mouseY <= gearY + 15.0f;
 
-        // Left accent indicator line for enabled modules
-        if (module.isEnabled()) {
-            GlassRenderUtil.fillRoundedRect(
-                    graphics,
-                    cardX + 6.0f,
-                    cardY + 12.0f,
-                    2.5f,
-                    20.0f,
-                    1.25f,
-                    applyAlpha(module.getCategory().getAccentColor(), screenAlpha)
-            );
-        }
+        float gearHover = moduleGearHoverMap.getOrDefault(module, 0.0f);
+        gearHover += ((gearHovered || module.isExpanded() ? 1.0f : 0.0f) - gearHover) * (1.0f - (float) Math.exp(-dt * 16.0f));
+        moduleGearHoverMap.put(module, gearHover);
 
-        // Module Name (English)
-        int titleColor = module.isEnabled() ? ThemeManager.getTitleColor() : ThemeManager.getSecondaryTextColor(currentHover);
-        MsdfRenderer.renderText(
-                Fonts.medium(),
-                module.getName(),
-                9.0f,
-                applyAlpha(titleColor, screenAlpha),
-                graphics.pose().last().pose(),
-                cardX + (module.isEnabled() ? 14.0f : 10.0f),
-                cardY + 9.5f,
-                0.0f
-        );
+        int gearColor = GlassRenderUtil.lerpColor(0xFF6B7280, 0xFFA78BFA, gearHover);
+        drawGearIcon(graphics, gearX + 6.0f, gearY + 6.0f, 5.0f, applyAlpha(gearColor, alpha));
 
-        // Category Tag Badge when live search is active
-        if (!searchQuery.trim().isEmpty()) {
-            float nameW = Fonts.medium().getWidth(module.getName(), 9.0f);
-            float badgeX = cardX + (module.isEnabled() ? 14.0f : 10.0f) + nameW + 6.0f;
-            float badgeY = cardY + 9.5f;
-            float cIconSize = 8.0f;
-            drawTintedIcon(graphics, module.getCategory().getIconLocation(), badgeX, badgeY + 1.0f, cIconSize, applyAlpha(module.getCategory().getAccentColor(), screenAlpha * 0.90f));
-            MsdfRenderer.renderText(
-                    Fonts.regular(),
-                    module.getCategory().getDisplayName(),
-                    6.0f,
-                    applyAlpha(module.getCategory().getAccentColor(), screenAlpha * 0.90f),
-                    graphics.pose().last().pose(),
-                    badgeX + cIconSize + 3.0f,
-                    badgeY + 1.5f,
-                    0.0f
-            );
-        }
+        // 4. iOS Toggle Switch (Purple #8B5CF6 when ON, Dark Gray #262630 when OFF)
+        float switchW = 24.0f;
+        float switchH = 13.0f;
+        float switchX = x + w - 28.0f;
+        float switchY = y + 10.5f;
 
-        // Module Description (English)
-        MsdfRenderer.renderText(
-                Fonts.regular(),
-                module.getDescription(),
-                6.8f,
-                applyAlpha(ThemeManager.getSecondaryTextColor(0.0f), screenAlpha),
-                graphics.pose().last().pose(),
-                cardX + (module.isEnabled() ? 14.0f : 10.0f),
-                cardY + 23.5f,
-                0.0f
-        );
+        float toggleProg = moduleToggleMap.getOrDefault(module, module.isEnabled() ? 1.0f : 0.0f);
+        toggleProg += (((module.isEnabled() ? 1.0f : 0.0f) - toggleProg) * (1.0f - (float) Math.exp(-dt * 18.0f)));
+        moduleToggleMap.put(module, toggleProg);
 
-        // Right-side controls: Settings Chevron & iOS Switch
-        float switchW = 28.0f;
-        float switchH = 14.0f;
-        float switchX = cardX + cardW - switchW - 10.0f;
-        float switchY = cardY + (baseCardH - switchH) / 2.0f;
+        int trackColor = GlassRenderUtil.lerpColor(0xFF262630, 0xFF8B5CF6, toggleProg);
+        GlassRenderUtil.fillRoundedRect(graphics, switchX, switchY, switchW, switchH, 6.5f, applyAlpha(trackColor, alpha));
 
-        // Animated Rotating Chevron Indicator (shown if module has settings)
-        if (!module.getSettings().isEmpty()) {
-            float gearX = switchX - 16.0f;
-            float gearY = cardY + (baseCardH - 12.0f) / 2.0f;
-            boolean hoverGear = mouseX >= gearX - 4 && mouseX <= gearX + 12 && mouseY >= gearY - 4 && mouseY <= gearY + 14;
+        // Switch circular thumb (animates smoothly between left and right)
+        float thumbSize = 9.0f;
+        float thumbX = switchX + 2.0f + toggleProg * (switchW - thumbSize - 4.0f);
+        float thumbY = switchY + (switchH - thumbSize) / 2.0f;
+        int thumbColor = GlassRenderUtil.lerpColor(0xFF71717A, 0xFFFFFFFF, toggleProg);
+        GlassRenderUtil.fillRoundedRect(graphics, thumbX, thumbY, thumbSize, thumbSize, thumbSize / 2.0f, applyAlpha(thumbColor, alpha));
 
-            graphics.pose().pushPose();
-            graphics.pose().translate(gearX + 3.0f, gearY + 6.0f, 0.0f);
-            // Smooth 180-degree rotation when drawer expands
-            float chevRot = module.getEasedExpand() * 180.0f;
-            graphics.pose().mulPose(com.mojang.math.Axis.ZP.rotationDegrees(chevRot));
+        // 5. Settings Drawer (Revealed smoothly)
+        if (module.getExpandProgress() > 0.01f) {
+            float setAlpha = alpha * module.getExpandProgress();
+            float settingY = y + 34.0f;
 
-            int chevColor = hoverGear ? 0xFFFFFFFF : 0xFF9CA3AF;
-            drawVectorChevron(graphics, 0.0f, 0.0f, applyAlpha(chevColor, screenAlpha));
-            graphics.pose().popPose();
-        }
+            // Thin subtle divider line
+            GlassRenderUtil.fillRoundedRect(graphics, x + 10.0f, settingY, w - 20.0f, 1.0f, 0.5f, applyAlpha(0xFF1E1E26, setAlpha));
+            settingY += 5.0f;
 
-        // Apple iOS Switch
-        float toggleProg = module.getToggleProgress();
-        // Crossfade track color to vibrant Emerald Green
-        int switchTrackColor = ThemeManager.lerpColor(0x3564748B, 0xFF22C55E, toggleProg);
-        GlassRenderUtil.fillRoundedRect(graphics, switchX, switchY, switchW, switchH, switchH / 2.0f, applyAlpha(switchTrackColor, screenAlpha));
-
-        float thumbSize = switchH - 2.5f;
-        float thumbX = switchX + 1.25f + toggleProg * (switchW - thumbSize - 2.5f);
-        GlassRenderUtil.fillRoundedRect(graphics, thumbX, switchY + 1.25f, thumbSize, thumbSize, thumbSize / 2.0f, applyAlpha(0xFFFFFFFF, screenAlpha));
-
-        // Settings Drawer rendering (with smooth scissor clipping and height expansion)
-        if (module.getExpandProgress() > 0.005f) {
-            float drawerH = cardH - baseCardH;
-            if (drawerH > 1.0f) {
-                graphics.enableScissor(
-                        (int) Math.floor(cardX),
-                        (int) Math.floor(cardY + baseCardH),
-                        (int) Math.ceil(cardX + cardW),
-                        (int) Math.ceil(cardY + cardH)
-                );
-                renderSettingsDrawer(graphics, module, cardX, cardY + baseCardH, cardW, mouseX, mouseY, dt, screenAlpha);
-                graphics.disableScissor();
+            // Render all settings
+            for (Setting<?> setting : module.getSettings()) {
+                if (setting instanceof NumberSetting num) {
+                    renderSliderSetting(graphics, num, x, settingY, w, mouseX, mouseY, dt, setAlpha);
+                } else if (setting instanceof ModeSetting mode) {
+                    renderModeSetting(graphics, mode, x, settingY, w, mouseX, mouseY, dt, setAlpha);
+                } else if (setting instanceof BooleanSetting bool) {
+                    renderCheckboxSetting(graphics, bool, x, settingY, w, mouseX, mouseY, dt, setAlpha);
+                } else if (setting instanceof ColorSetting col) {
+                    renderColorSettingRow(graphics, col, x, settingY, w, mouseX, mouseY, dt, setAlpha);
+                }
+                settingY += 21.0f;
             }
+
+            // Keybind Row inside drawer
+            renderKeybindSettingRow(graphics, module, x, settingY, w, mouseX, mouseY, dt, setAlpha);
         }
     }
 
-    private void renderSettingsDrawer(GuiGraphics graphics, Module module, float startX, float startY, float width, int mouseX, int mouseY, float dt, float screenAlpha) {
-        float drawerAlpha = module.getEasedExpand() * screenAlpha;
-        float currentY = startY + 2.0f;
+    private void renderSliderSetting(GuiGraphics graphics, NumberSetting slider, float x, float y, float w, int mouseX, int mouseY, float dt, float alpha) {
+        // Label on left
+        MsdfRenderer.renderText(Fonts.medium(), slider.getName(), 7.0f, applyAlpha(0xFF9CA3AF, alpha), graphics.pose().last().pose(), x + 12.0f, y + 6.0f, 0.0f);
 
-        // Subtle divider line
-        int divColor = applyAlpha(ThemeManager.lerpColor(0x18FFFFFF, 0x18000000, ThemeManager.getTransitionFactor()), drawerAlpha);
-        GlassRenderUtil.fillRoundedRect(graphics, startX + 10.0f, currentY, width - 20.0f, 1.0f, 0.5f, divColor);
-        currentY += 6.0f;
+        // Value text on far right (e.g. "4.5" in purple #9372FF)
+        String valStr = String.format("%.1f", slider.getValue());
+        if (slider.getStep() >= 1.0) {
+            valStr = String.format("%d", slider.getValue().intValue());
+        }
+        MsdfRenderer.renderText(Fonts.bold(), valStr, 7.0f, applyAlpha(0xFF9372FF, alpha), graphics.pose().last().pose(), x + w - 24.0f, y + 6.0f, 0.0f);
 
-        // Keybind selector row (English) with smooth binding & flash animations
+        // Slider track
+        float trackW = 50.0f;
+        float trackH = 4.0f;
+        float trackX = x + w - 82.0f;
+        float trackY = y + 8.5f;
+
+        // Background track
+        GlassRenderUtil.fillRoundedRect(graphics, trackX, trackY, trackW, trackH, 2.0f, applyAlpha(0xFF22222A, alpha));
+
+        // Active purple fill
+        float progress = slider.getSliderProgress();
+        float fillW = Math.max(4.0f, trackW * progress);
+        GlassRenderUtil.fillGradientRoundedRect(graphics, trackX, trackY, fillW, trackH, 2.0f, applyAlpha(0xFF8B5CF6, alpha), applyAlpha(0xFFA78BFA, alpha));
+
+        // Pill thumb
+        float thumbW = 7.0f;
+        float thumbH = 6.0f;
+        float thumbX = trackX + progress * (trackW - thumbW);
+        float thumbY = trackY + (trackH - thumbH) / 2.0f;
+        GlassRenderUtil.fillRoundedRect(graphics, thumbX, thumbY, thumbW, thumbH, 3.0f, applyAlpha(0xFFFFFFFF, alpha));
+
+        // Dragging handling
+        if (draggingSlider == slider) {
+            float mouseP = (mouseX - trackX) / trackW;
+            slider.setFromProgress(mouseP);
+        }
+    }
+
+    private void renderModeSetting(GuiGraphics graphics, ModeSetting mode, float x, float y, float w, int mouseX, int mouseY, float dt, float alpha) {
+        // Label on left
+        MsdfRenderer.renderText(Fonts.medium(), mode.getName(), 7.0f, applyAlpha(0xFF9CA3AF, alpha), graphics.pose().last().pose(), x + 12.0f, y + 6.0f, 0.0f);
+
+        // Dropdown pill on right (e.g. "Mode1 , Mode2 ↕")
+        String text = mode.getValue() + " ↕";
+        float textW = Fonts.medium().getWidth(text, 6.8f);
+        float pillW = Math.max(54.0f, textW + 12.0f);
+        float pillH = 15.0f;
+        float pillX = x + w - pillW - 10.0f;
+        float pillY = y + 3.0f;
+
+        boolean hovered = mouseX >= pillX && mouseX <= pillX + pillW && mouseY >= pillY && mouseY <= pillY + pillH;
+        int pillBg = hovered ? 0xFF282834 : 0xFF1E1E26;
+        GlassRenderUtil.fillRoundedRect(graphics, pillX, pillY, pillW, pillH, 4.0f, applyAlpha(pillBg, alpha));
+
+        MsdfRenderer.renderCenteredText(Fonts.medium(), text, 6.8f, applyAlpha(0xFFD1D5DB, alpha), graphics.pose().last().pose(), pillX + pillW / 2.0f, pillY + 4.5f, 0.0f);
+    }
+
+    private void renderCheckboxSetting(GuiGraphics graphics, BooleanSetting bool, float x, float y, float w, int mouseX, int mouseY, float dt, float alpha) {
+        // Label on left
+        MsdfRenderer.renderText(Fonts.medium(), bool.getName(), 7.0f, applyAlpha(0xFF9CA3AF, alpha), graphics.pose().last().pose(), x + 12.0f, y + 6.0f, 0.0f);
+
+        // Mini iOS toggle switch on right
+        float switchW = 20.0f;
+        float switchH = 11.0f;
+        float switchX = x + w - switchW - 10.0f;
+        float switchY = y + 5.0f;
+
+        float toggleProg = boolToggleMap.getOrDefault(bool, bool.getValue() ? 1.0f : 0.0f);
+        toggleProg += (((bool.getValue() ? 1.0f : 0.0f) - toggleProg) * (1.0f - (float) Math.exp(-dt * 18.0f)));
+        boolToggleMap.put(bool, toggleProg);
+
+        int trackColor = GlassRenderUtil.lerpColor(0xFF262630, 0xFF8B5CF6, toggleProg);
+        GlassRenderUtil.fillRoundedRect(graphics, switchX, switchY, switchW, switchH, 5.5f, applyAlpha(trackColor, alpha));
+
+        float thumbSize = 7.0f;
+        float thumbX = switchX + 2.0f + toggleProg * (switchW - thumbSize - 4.0f);
+        float thumbY = switchY + (switchH - thumbSize) / 2.0f;
+        GlassRenderUtil.fillRoundedRect(graphics, thumbX, thumbY, thumbSize, thumbSize, thumbSize / 2.0f, applyAlpha(0xFFFFFFFF, alpha));
+    }
+
+    private void renderColorSettingRow(GuiGraphics graphics, ColorSetting col, float x, float y, float w, int mouseX, int mouseY, float dt, float alpha) {
+        MsdfRenderer.renderText(Fonts.medium(), col.getName(), 7.0f, applyAlpha(0xFF9CA3AF, alpha), graphics.pose().last().pose(), x + 12.0f, y + 6.0f, 0.0f);
+
+        // Hex pill badge (e.g. #9372FF)
+        float pillW = 44.0f;
+        float pillH = 15.0f;
+        float pillX = x + w - pillW - 10.0f;
+        float pillY = y + 3.0f;
+
+        GlassRenderUtil.fillRoundedRect(graphics, pillX, pillY, pillW, pillH, 4.0f, applyAlpha(col.getValue(), alpha));
+        GlassRenderUtil.drawRoundedOutline(graphics, (int) pillX, (int) pillY, (int) pillW, (int) pillH, 4, 0.6f, applyAlpha(0xFFFFFFFF, alpha * 0.4f));
+
+        MsdfRenderer.renderCenteredText(Fonts.bold(), col.getHex(), 6.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), pillX + pillW / 2.0f, pillY + 4.5f, 0.0f);
+    }
+
+    private void renderKeybindSettingRow(GuiGraphics graphics, Module module, float x, float y, float w, int mouseX, int mouseY, float dt, float alpha) {
+        MsdfRenderer.renderText(Fonts.medium(), "Keybind", 7.0f, applyAlpha(0xFF9CA3AF, alpha), graphics.pose().last().pose(), x + 12.0f, y + 6.0f, 0.0f);
+
         boolean isBinding = (bindingModule == module);
-        float targetBind = isBinding ? 1.0f : 0.0f;
-        float bindProg = bindProgressMap.getOrDefault(module, 0.0f);
-        bindProg += (targetBind - bindProg) * (1.0f - (float) Math.exp(-dt * 18.0f));
-        bindProgressMap.put(module, bindProg);
+        String name = isBinding ? "Listening..." : (module.getKeybind() != GLFW.GLFW_KEY_UNKNOWN ? getKeyName(module.getKeybind()) : "None");
 
-        float flash = bindFlashMap.getOrDefault(module, 0.0f);
-        if (flash > 0.001f) {
-            flash += (0.0f - flash) * (1.0f - (float) Math.exp(-dt * 8.0f));
-            bindFlashMap.put(module, flash);
+        float textW = Fonts.medium().getWidth(name, 6.8f);
+        float pillW = Math.max(38.0f, textW + 12.0f);
+        float pillH = 15.0f;
+        float pillX = x + w - pillW - 10.0f;
+        float pillY = y + 3.0f;
+
+        int pillBg = isBinding ? 0xFF8B5CF6 : (module.getKeybind() != GLFW.GLFW_KEY_UNKNOWN ? 0xFF352B4E : 0xFF1E1E26);
+        GlassRenderUtil.fillRoundedRect(graphics, pillX, pillY, pillW, pillH, 4.0f, applyAlpha(pillBg, alpha));
+
+        int textColor = isBinding ? 0xFFFFFFFF : (module.getKeybind() != GLFW.GLFW_KEY_UNKNOWN ? 0xFFA78BFA : 0xFF6B7280);
+        MsdfRenderer.renderCenteredText(Fonts.medium(), name, 6.8f, applyAlpha(textColor, alpha), graphics.pose().last().pose(), pillX + pillW / 2.0f, pillY + 4.5f, 0.0f);
+    }
+
+    private void renderColorPickerPopup(GuiGraphics graphics, int mouseX, int mouseY, float dt, float alpha) {
+        float cpW = 176.0f;
+        float cpH = 142.0f;
+        float cpX = colorPickerX;
+        float cpY = colorPickerY;
+
+        // Keep inside screen
+        cpX = Math.max(10.0f, Math.min(this.width - cpW - 10.0f, cpX));
+        cpY = Math.max(10.0f, Math.min(this.height - cpH - 10.0f, cpY));
+
+        // Floating Card Container (#131317, 14px radius, sleek border)
+        GlassRenderUtil.fillRoundedRect(graphics, cpX, cpY, cpW, cpH, 14.0f, applyAlpha(0xFF131317, alpha));
+        GlassRenderUtil.drawRoundedOutline(graphics, (int) cpX, (int) cpY, (int) cpW, (int) cpH, 14, 0.8f, applyAlpha(0xFF282836, alpha));
+
+        // 1. Saturation / Value Gradient Box
+        float svX = cpX + 10.0f;
+        float svY = cpY + 10.0f;
+        float svW = cpW - 20.0f;
+        float svH = 92.0f;
+
+        int baseHueColor = Color.HSBtoRGB(pickerHue, 1.0f, 1.0f);
+        GlassRenderUtil.fillRoundedRect(graphics, svX, svY, svW, svH, 8.0f, applyAlpha(baseHueColor, alpha));
+
+        // Horizontal white fade (saturation) + vertical black fade (brightness)
+        GlassRenderUtil.fillGradientRoundedRect(graphics, svX, svY, svW, svH, 8.0f, applyAlpha(0x00FFFFFF, 0.0f), applyAlpha(0xFF000000, alpha));
+
+        // Picker Ring Thumb
+        float thumbX = svX + pickerSat * svW;
+        float thumbY = svY + (1.0f - pickerVal) * svH;
+        GlassRenderUtil.fillRoundedRect(graphics, thumbX - 3.5f, thumbY - 3.5f, 7.0f, 7.0f, 3.5f, applyAlpha(0xFFFFFFFF, alpha));
+        GlassRenderUtil.fillRoundedRect(graphics, thumbX - 2.0f, thumbY - 2.0f, 4.0f, 4.0f, 2.0f, applyAlpha(activeColorPickerSetting.getValue(), alpha));
+
+        // 2. Hue Rainbow Slider Bar
+        float hueX = cpX + 10.0f;
+        float hueY = cpY + 112.0f;
+        float hueW = cpW - 20.0f;
+        float hueH = 8.0f;
+
+        // Draw segmented rainbow bar
+        int segments = 12;
+        float segW = hueW / segments;
+        for (int i = 0; i < segments; i++) {
+            float h1 = (float) i / segments;
+            float h2 = (float) (i + 1) / segments;
+            int c1 = Color.HSBtoRGB(h1, 1.0f, 1.0f);
+            int c2 = Color.HSBtoRGB(h2, 1.0f, 1.0f);
+            GlassRenderUtil.fillRoundedRect(graphics, hueX + i * segW, hueY, segW + 0.5f, hueH, 4.0f, applyAlpha(c1, alpha));
         }
 
-        // Cycling dots for "Press key..."
-        int dotCount = (int) ((System.currentTimeMillis() / 320) % 4);
-        String dotStr = switch (dotCount) {
-            case 1 -> ".";
-            case 2 -> "..";
-            case 3 -> "...";
-            default -> "";
-        };
-        String keyName = isBinding ? ("Press key" + dotStr) : getKeyName(module.getKeybind());
+        // Hue Ring Thumb
+        float hueThumbX = hueX + pickerHue * hueW;
+        GlassRenderUtil.fillRoundedRect(graphics, hueThumbX - 3.0f, hueY - 1.0f, 6.0f, 10.0f, 3.0f, applyAlpha(0xFFFFFFFF, alpha));
 
-        // Smooth width morphing
-        float targetBoxW = Math.max(48.0f, Fonts.medium().getWidth(keyName, 7.0f) + 16.0f);
-        float boxW = bindWidthMap.getOrDefault(module, targetBoxW);
-        boxW += (targetBoxW - boxW) * (1.0f - (float) Math.exp(-dt * 20.0f));
-        bindWidthMap.put(module, boxW);
-
-        float boxH = 14.0f;
-        float boxX = startX + width - boxW - 12.0f;
-        float boxY = currentY;
-
-        float labelY = boxY + (boxH - 7.0f * 0.72f) / 2.0f;
-        MsdfRenderer.renderText(
-                Fonts.medium(),
-                "Keybind:",
-                7.0f,
-                applyAlpha(ThemeManager.getSecondaryTextColor(0.0f), drawerAlpha),
-                graphics.pose().last().pose(),
-                startX + 12.0f,
-                labelY,
-                0.0f
-        );
-
-        // Breathing / Heartbeat pulse scale when binding
-        float pulse = (float) (Math.sin(System.currentTimeMillis() / 140.0) * 0.5 + 0.5);
-        float bindScale = 1.0f + 0.045f * bindProg * (0.35f + 0.65f * pulse);
-
-        graphics.pose().pushPose();
-        graphics.pose().translate(boxX + boxW / 2.0f, boxY + boxH / 2.0f, 0.0f);
-        graphics.pose().scale(bindScale, bindScale, 1.0f);
-        graphics.pose().translate(-(boxX + boxW / 2.0f), -(boxY + boxH / 2.0f), 0.0f);
-
-        // Dynamic background with pulse and success flash
-        int activeBlue = ThemeManager.lerpColor(0xFF2563EB, 0xFF3B82F6, pulse);
-        int baseBg = applyAlpha(0x22FFFFFF, drawerAlpha);
-        int keyBg = ThemeManager.lerpColor(baseBg, activeBlue, bindProg);
-        if (flash > 0.005f) {
-            keyBg = ThemeManager.lerpColor(keyBg, 0xFF10B981, flash);
+        // Interactive dragging
+        if (isDraggingSV) {
+            pickerSat = Math.max(0.0f, Math.min(1.0f, (mouseX - svX) / svW));
+            pickerVal = Math.max(0.0f, Math.min(1.0f, 1.0f - (mouseY - svY) / svH));
+            updatePickedColor();
+        } else if (isDraggingHue) {
+            pickerHue = Math.max(0.0f, Math.min(1.0f, (mouseX - hueX) / hueW));
+            updatePickedColor();
         }
-        GlassRenderUtil.fillRoundedRect(graphics, boxX, boxY, boxW, boxH, 4.0f, keyBg);
+    }
 
-        // Glowing animated border
-        if (bindProg > 0.02f) {
-            int glowBorder = ThemeManager.lerpColor(0x803B82F6, 0xFF93C5FD, pulse);
-            GlassRenderUtil.drawRoundedOutline(
-                    graphics,
-                    (int) boxX,
-                    (int) boxY,
-                    (int) boxW,
-                    (int) boxH,
-                    4,
-                    0.6f + 0.6f * pulse,
-                    applyAlpha(glowBorder, drawerAlpha * bindProg)
-            );
-        } else if (flash > 0.02f) {
-            GlassRenderUtil.drawRoundedOutline(
-                    graphics,
-                    (int) boxX,
-                    (int) boxY,
-                    (int) boxW,
-                    (int) boxH,
-                    4,
-                    1.0f,
-                    applyAlpha(0xFF34D399, drawerAlpha * flash)
-            );
+    private void updatePickedColor() {
+        if (activeColorPickerSetting != null) {
+            int rgb = Color.HSBtoRGB(pickerHue, pickerSat, pickerVal);
+            activeColorPickerSetting.setValue(0xFF000000 | (rgb & 0x00FFFFFF));
         }
+    }
 
-        // Text color & centered rendering
-        int textBase = ThemeManager.getTitleColor();
-        int textColor = (bindProg > 0.1f) ? 0xFFFFFFFF : textBase;
-        if (flash > 0.01f) {
-            textColor = ThemeManager.lerpColor(textColor, 0xFFECFDF5, flash);
-        }
-
-        float textCenterX = boxX + boxW / 2.0f;
-        float textCenterY = boxY + (boxH - 7.0f * 0.72f) / 2.0f;
-        MsdfRenderer.renderCenteredText(
-                Fonts.medium(),
-                keyName,
-                7.0f,
-                applyAlpha(textColor, drawerAlpha),
-                graphics.pose().last().pose(),
-                textCenterX,
-                textCenterY,
-                0.0f
-        );
-
-        graphics.pose().popPose();
-        currentY += 18.0f;
-
-        // Module settings list (English)
-        for (Setting<?> setting : module.getSettings()) {
-            float rowH = (setting instanceof NumberSetting) ? 26.0f : ((setting instanceof BooleanSetting) ? 18.0f : 20.0f);
-            boolean isRowHovered = mouseX >= startX + 6.0f && mouseX <= startX + width - 6.0f && mouseY >= currentY - 2.0f && mouseY <= currentY + rowH - 2.0f;
-            float sHover = settingHoverMap.getOrDefault(setting, 0.0f);
-            sHover += ((isRowHovered ? 1.0f : 0.0f) - sHover) * (1.0f - (float) Math.exp(-dt * 16.0f));
-            settingHoverMap.put(setting, sHover);
-
-            if (sHover > 0.01f) {
-                GlassRenderUtil.fillRoundedRect(graphics, startX + 6.0f, currentY - 2.0f, width - 12.0f, rowH, 4.0f, applyAlpha(0x10FFFFFF, drawerAlpha * sHover));
-            }
-
-            if (setting instanceof NumberSetting num) {
-                float sliderW = width - 24.0f;
-                float sliderX = startX + 12.0f;
-
-                String valStr = String.format("%.1f", num.getValue());
-                MsdfRenderer.renderText(
-                        Fonts.medium(),
-                        setting.getName(),
-                        7.0f,
-                        applyAlpha(ThemeManager.getSecondaryTextColor(sHover), drawerAlpha),
-                        graphics.pose().last().pose(),
-                        sliderX,
-                        currentY,
-                        0.0f
-                );
-                MsdfRenderer.renderText(
-                        Fonts.medium(),
-                        valStr,
-                        7.0f,
-                        applyAlpha(ThemeManager.getTitleColor(), drawerAlpha),
-                        graphics.pose().last().pose(),
-                        sliderX + sliderW - Fonts.medium().getWidth(valStr, 7.0f),
-                        currentY,
-                        0.0f
-                );
-
-                currentY += 10.0f;
-                // Slider Track
-                float trackH = 4.0f;
-
-                float targetProg = num.getSliderProgress();
-                float sProg = sliderProgressMap.getOrDefault(num, targetProg);
-                if (draggingSlider == num) {
-                    sProg = targetProg;
-                } else {
-                    sProg += (targetProg - sProg) * (1.0f - (float) Math.exp(-dt * 20.0f));
-                }
-                sliderProgressMap.put(num, sProg);
-
-                boolean hoverSlider = mouseX >= sliderX - 4.0f && mouseX <= sliderX + sliderW + 4.0f && mouseY >= currentY - 4.0f && mouseY <= currentY + 8.0f;
-                float slHover = sliderHoverMap.getOrDefault(num, 0.0f);
-                slHover += (((hoverSlider || draggingSlider == num) ? 1.0f : 0.0f) - slHover) * (1.0f - (float) Math.exp(-dt * 18.0f));
-                sliderHoverMap.put(num, slHover);
-
-                GlassRenderUtil.fillRoundedRect(graphics, sliderX, currentY, sliderW, trackH, 2.0f, applyAlpha(0x20FFFFFF, drawerAlpha));
-                // Filled progress with smooth animation
-                float fillW = sliderW * Math.max(0.0f, Math.min(1.0f, sProg));
-                GlassRenderUtil.fillRoundedRect(graphics, sliderX, currentY, fillW, trackH, 2.0f, applyAlpha(0xFF3B82F6, drawerAlpha));
-
-                // Slider Thumb with hover halo & expansion
-                float thumbW = 7.0f + slHover * 1.5f;
-                float thumbH = 9.0f + slHover * 2.0f;
-                float thumbX = sliderX + fillW - thumbW / 2.0f;
-                float thumbY = currentY + trackH / 2.0f - thumbH / 2.0f;
-
-                if (slHover > 0.02f) {
-                    GlassRenderUtil.fillRoundedRect(graphics, thumbX - 2.5f, thumbY - 2.0f, thumbW + 5.0f, thumbH + 4.0f, 4.0f, applyAlpha(0x353B82F6, drawerAlpha * slHover));
-                }
-                GlassRenderUtil.fillRoundedRect(graphics, thumbX, thumbY, thumbW, thumbH, 3.5f, applyAlpha(0xFFFFFFFF, drawerAlpha));
-
-                currentY += 16.0f;
-            } else if (setting instanceof BooleanSetting bool) {
-                float rowX = startX + 12.0f;
-                float swW = 22.0f;
-                float swH = 12.0f;
-                float swX = startX + width - swW - 12.0f;
-                float swY = currentY + 1.0f;
-                float bLabelY = currentY + (swH - 7.0f * 0.72f) / 2.0f;
-
-                MsdfRenderer.renderText(
-                        Fonts.medium(),
-                        bool.getName(),
-                        7.0f,
-                        applyAlpha(ThemeManager.getSecondaryTextColor(sHover), drawerAlpha),
-                        graphics.pose().last().pose(),
-                        rowX,
-                        bLabelY,
-                        0.0f
-                );
-
-                // Smooth animated switch toggle & color transition
-                float targetToggle = bool.getValue() ? 1.0f : 0.0f;
-                float bProg = boolToggleMap.getOrDefault(bool, targetToggle);
-                bProg += (targetToggle - bProg) * (1.0f - (float) Math.exp(-dt * 18.0f));
-                boolToggleMap.put(bool, bProg);
-
-                int trackColor = ThemeManager.lerpColor(0x30888888, 0xFF22C55E, bProg);
-                GlassRenderUtil.fillRoundedRect(graphics, swX, swY, swW, swH, swH / 2.0f, applyAlpha(trackColor, drawerAlpha));
-
-                float thSize = swH - 2.0f;
-                float thX = swX + 1.0f + bProg * (swW - thSize - 2.0f);
-                GlassRenderUtil.fillRoundedRect(graphics, thX, swY + 1.0f, thSize, thSize, thSize / 2.0f, applyAlpha(0xFFFFFFFF, drawerAlpha));
-
-                currentY += 18.0f;
-            } else if (setting instanceof ModeSetting mode) {
-                float rowX = startX + 12.0f;
-                String mVal = mode.getValue();
-                float mPillW = Math.max(48.0f, Fonts.medium().getWidth(mVal, 7.0f) + 16.0f);
-                float mPillH = 14.0f;
-                float mPillX = startX + width - mPillW - 12.0f;
-                float mPillY = currentY;
-
-                float mLabelY = mPillY + (mPillH - 7.0f * 0.72f) / 2.0f;
-                MsdfRenderer.renderText(
-                        Fonts.medium(),
-                        mode.getName() + ":",
-                        7.0f,
-                        applyAlpha(ThemeManager.getSecondaryTextColor(sHover), drawerAlpha),
-                        graphics.pose().last().pose(),
-                        rowX,
-                        mLabelY,
-                        0.0f
-                );
-
-                boolean hoverMode = mouseX >= mPillX && mouseX <= mPillX + mPillW && mouseY >= mPillY && mouseY <= mPillY + mPillH;
-                float bounce = modeBounceMap.getOrDefault(mode, 0.0f);
-                bounce = Math.max(0.0f, bounce - dt * 5.0f);
-                modeBounceMap.put(mode, bounce);
-
-                float modeScale = (1.0f + (hoverMode ? 0.03f : 0.0f)) - (float) Math.sin(bounce * Math.PI) * 0.10f;
-                graphics.pose().pushPose();
-                graphics.pose().translate(mPillX + mPillW / 2.0f, mPillY + mPillH / 2.0f, 0.0f);
-                graphics.pose().scale(modeScale, modeScale, 1.0f);
-                graphics.pose().translate(-(mPillX + mPillW / 2.0f), -(mPillY + mPillH / 2.0f), 0.0f);
-
-                int pillBg = hoverMode ? 0x40FFFFFF : 0x25FFFFFF;
-                GlassRenderUtil.fillRoundedRect(graphics, mPillX, mPillY, mPillW, mPillH, 4.0f, applyAlpha(pillBg, drawerAlpha));
-                float mTextCenterX = mPillX + mPillW / 2.0f;
-                float mTextCenterY = mPillY + (mPillH - 7.0f * 0.72f) / 2.0f;
-                MsdfRenderer.renderCenteredText(
-                        Fonts.medium(),
-                        mVal,
-                        7.0f,
-                        applyAlpha(ThemeManager.getTitleColor(), drawerAlpha),
-                        graphics.pose().last().pose(),
-                        mTextCenterX,
-                        mTextCenterY,
-                        0.0f
-                );
-                graphics.pose().popPose();
-
-                currentY += 20.0f;
-            }
-        }
+    private void drawGearIcon(GuiGraphics graphics, float cx, float cy, float r, int color) {
+        GlassRenderUtil.fillRoundedRect(graphics, cx - r, cy - 1.0f, r * 2.0f, 2.0f, 1.0f, color);
+        GlassRenderUtil.fillRoundedRect(graphics, cx - 1.0f, cy - r, 2.0f, r * 2.0f, 1.0f, color);
+        GlassRenderUtil.fillRoundedRect(graphics, cx - r * 0.7f, cy - r * 0.7f, r * 1.4f, 2.0f, 1.0f, color);
+        GlassRenderUtil.fillRoundedRect(graphics, cx - r * 0.7f, cy + r * 0.7f - 2.0f, r * 1.4f, 2.0f, 1.0f, color);
+        GlassRenderUtil.fillRoundedRect(graphics, cx - 1.5f, cy - 1.5f, 3.0f, 3.0f, 1.5f, 0xFF131317);
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (isClosing) return false;
-
-        // Give enabled HUD modules (such as Dynamic Island) priority to capture clicks
-        for (dev.cweldlc.client.module.Module mod : dev.cweldlc.client.module.ModuleManager.getInstance().getModules()) {
-            if (mod.isEnabled() && mod.onMouseClicked(mouseX, mouseY, button)) {
-                return true;
-            }
-        }
-
         float winX = (this.width - WIN_WIDTH) / 2.0f;
         float winY = (this.height - WIN_HEIGHT) / 2.0f;
 
-        float divX = winX + SIDEBAR_WIDTH + 2.0f;
-        float mainX = divX + 12.0f;
-        float mainW = (winX + WIN_WIDTH) - mainX - 12.0f;
+        // 1. Color Picker Popup interaction
+        if (activeColorPickerSetting != null) {
+            float cpW = 176.0f;
+            float cpH = 142.0f;
+            float cpX = colorPickerX;
+            float cpY = colorPickerY;
+            boolean insidePopup = mouseX >= cpX && mouseX <= cpX + cpW && mouseY >= cpY && mouseY <= cpY + cpH;
 
-        // 1. Header Right Controls Click: Media Toggle + Search Box
-        float btnSize = 21.0f;
-        float btnY = winY + 10.0f;
-        float musicBtnX = mainX + mainW - btnSize;
-        float searchX = musicBtnX - searchBoxWidth - 6.0f;
+            if (insidePopup) {
+                float svX = cpX + 10.0f;
+                float svY = cpY + 10.0f;
+                float svW = cpW - 20.0f;
+                float svH = 92.0f;
 
-        if (button == 0) {
-            // Media Player toggle click
-            if (mouseX >= musicBtnX && mouseX <= musicBtnX + btnSize && mouseY >= btnY && mouseY <= btnY + btnSize) {
-                showMediaPlayer = !showMediaPlayer;
-                playClick(showMediaPlayer ? 1.3f : 0.95f);
-                return true;
-            }
+                float hueX = cpX + 10.0f;
+                float hueY = cpY + 112.0f;
+                float hueW = cpW - 20.0f;
+                float hueH = 8.0f;
 
-            // Search Box click
-            if (mouseX >= searchX && mouseX <= searchX + searchBoxWidth && mouseY >= btnY && mouseY <= btnY + btnSize) {
-                if (!searchQuery.isEmpty() && mouseX >= searchX + searchBoxWidth - 14.0f) {
-                    searchQuery = "";
-                    searchFocused = false;
-                } else {
-                    searchFocused = true;
+                if (mouseX >= svX && mouseX <= svX + svW && mouseY >= svY && mouseY <= svY + svH) {
+                    isDraggingSV = true;
+                    pickerSat = Math.max(0.0f, Math.min(1.0f, (float) (mouseX - svX) / svW));
+                    pickerVal = Math.max(0.0f, Math.min(1.0f, 1.0f - (float) (mouseY - svY) / svH));
+                    updatePickedColor();
+                    return true;
+                } else if (mouseX >= hueX && mouseX <= hueX + hueW && mouseY >= hueY && mouseY <= hueY + hueH) {
+                    isDraggingHue = true;
+                    pickerHue = Math.max(0.0f, Math.min(1.0f, (float) (mouseX - hueX) / hueW));
+                    updatePickedColor();
+                    return true;
                 }
-                playClick(1.3f);
                 return true;
             } else {
-                searchFocused = false;
-            }
-        }
-
-        // 2. Left Sidebar Category Click
-        float catStartY = winY + 54.0f;
-        float catH = 26.0f;
-        float catSpacing = 4.0f;
-        float catW = SIDEBAR_WIDTH - 20.0f;
-        float catX = winX + 10.0f;
-
-        for (Category cat : Category.values()) {
-            float rowY = catStartY + cat.ordinal() * (catH + catSpacing);
-            if (mouseX >= catX && mouseX <= catX + catW && mouseY >= rowY && mouseY <= rowY + catH && button == 0) {
-                if (currentCategory != cat) {
-                    currentCategory = cat;
-                    searchQuery = "";
-                    targetScrollY = 0.0f;
-                    playClick(1.2f);
-                }
+                activeColorPickerSetting = null;
                 return true;
             }
         }
 
-        // 3. Floating Media Player Card Interaction
-        if (showMediaPlayer && mediaAnimProgress > 0.4f) {
-            float cardW = WIN_WIDTH;
-            float cardH = 48.0f;
-            float cardX = winX;
-            float cardY = winY + WIN_HEIGHT + 8.0f;
-            if (cardY + cardH > this.height - 4.0f) {
-                cardY = this.height - cardH - 4.0f;
-            }
+        // 2. Sidebar Navigation Clicking
+        float curY = winY + 52.0f;
+        String[] allTabs = {"Combat", "Movement", "Player", "Visuals", "Themes", "Configs", "Favorites", "Friends"};
+        float itemW = SIDEBAR_WIDTH - 24.0f;
+        float itemX = winX + 12.0f;
+        float itemH = 22.0f;
 
-            if (mouseX >= cardX && mouseX <= cardX + cardW && mouseY >= cardY && mouseY <= cardY + cardH) {
-                MediaManager media = MediaManager.getInstance();
-                float ctrlCenterX = cardX + cardW / 2.0f + 15.0f;
-                float ctrlBtnY = cardY + 7.0f;
-
-                // Scrub bar click & seek
-                float scrubW = 160.0f;
-                float scrubX = ctrlCenterX - scrubW / 2.0f;
-                float scrubY = cardY + 31.0f;
-                if (mouseX >= scrubX - 4.0f && mouseX <= scrubX + scrubW + 4.0f && mouseY >= scrubY - 6.0f && mouseY <= scrubY + 10.0f) {
-                    float prog = (float) Math.max(0.0f, Math.min(1.0f, (mouseX - scrubX) / scrubW));
-                    float curProg = media.getProgress();
-                    if (prog < curProg - 0.03f) {
-                        rewindWaveAnim = 1.0f;
-                    } else if (prog > curProg + 0.03f) {
-                        forwardWaveAnim = 1.0f;
-                    }
-                    media.seekTo(prog);
-                    isDraggingScrubber = true;
-                    playClick(1.2f);
-                    return true;
-                }
-
-                // Quick skip -10s
-                float skip10PrevX = ctrlCenterX - 56.0f;
-                if (mouseX >= skip10PrevX - 2 && mouseX <= skip10PrevX + 19 && mouseY >= ctrlBtnY + 1 && mouseY <= ctrlBtnY + 16) {
-                    media.seekOffset(-10);
-                    skip10PrevBounce = 1.0f;
-                    rewindWaveAnim = 1.0f;
-                    playClick(1.15f);
-                    return true;
-                }
-
-                // Previous button
-                float prevSize = 20.0f;
-                float prevX = ctrlCenterX - 36.0f;
-                float prevY = ctrlBtnY - 1.0f;
-                if (mouseX >= prevX && mouseX <= prevX + prevSize && mouseY >= prevY && mouseY <= prevY + prevSize) {
-                    media.previous();
-                    prevBounce = 1.0f;
-                    rewindWaveAnim = 1.0f;
-                    playClick(1.2f);
-                    return true;
-                }
-
-                // Play / Pause button
-                float playSize = 22.0f;
-                float playX = ctrlCenterX - playSize / 2.0f;
-                float playY = ctrlBtnY - 2.0f;
-                if (mouseX >= playX && mouseX <= playX + playSize && mouseY >= playY && mouseY <= playY + playSize) {
-                    media.playPause();
-                    playBounce = 1.0f;
-                    playClick(media.isPlaying() ? 1.3f : 0.9f);
-                    return true;
-                }
-
-                // Next button
-                float nextSize = 20.0f;
-                float nextX = ctrlCenterX + 16.0f;
-                float nextY = ctrlBtnY - 1.0f;
-                if (mouseX >= nextX && mouseX <= nextX + nextSize && mouseY >= nextY && mouseY <= nextY + nextSize) {
-                    media.next();
-                    nextBounce = 1.0f;
-                    forwardWaveAnim = 1.0f;
-                    playClick(1.2f);
-                    return true;
-                }
-
-                // Quick skip +10s
-                float skip10NextX = ctrlCenterX + 39.0f;
-                if (mouseX >= skip10NextX - 2 && mouseX <= skip10NextX + 19 && mouseY >= ctrlBtnY + 1 && mouseY <= ctrlBtnY + 16) {
-                    media.seekOffset(10);
-                    skip10NextBounce = 1.0f;
-                    forwardWaveAnim = 1.0f;
-                    playClick(1.15f);
-                    return true;
-                }
-
+        // Check group 1
+        float g1Y = curY + 11.0f;
+        for (int i = 0; i < 4; i++) {
+            if (mouseX >= itemX && mouseX <= itemX + itemW && mouseY >= g1Y && mouseY <= g1Y + itemH) {
+                selectedSubTab = allTabs[i];
+                searchQuery = "";
+                targetScrollY = 0.0f;
+                playClick(1.05f);
                 return true;
             }
+            g1Y += itemH + 2.0f;
         }
 
-        // 4. Module Cards Click Handling
-        List<Module> modules;
-        if (!searchQuery.trim().isEmpty()) {
-            String q = searchQuery.trim().toLowerCase();
-            modules = ModuleManager.getInstance().getModules().stream()
-                    .filter(m -> m.getName().toLowerCase().contains(q) || m.getDescription().toLowerCase().contains(q))
-                    .collect(Collectors.toList());
+        // Check group 2
+        float g2Y = g1Y + 17.0f;
+        for (int i = 4; i < 6; i++) {
+            if (mouseX >= itemX && mouseX <= itemX + itemW && mouseY >= g2Y && mouseY <= g2Y + itemH) {
+                selectedSubTab = allTabs[i];
+                searchQuery = "";
+                targetScrollY = 0.0f;
+                playClick(1.05f);
+                return true;
+            }
+            g2Y += itemH + 2.0f;
+        }
+
+        // Check group 3
+        float g3Y = g2Y + 17.0f;
+        for (int i = 6; i < 8; i++) {
+            if (mouseX >= itemX && mouseX <= itemX + itemW && mouseY >= g3Y && mouseY <= g3Y + itemH) {
+                selectedSubTab = allTabs[i];
+                searchQuery = "";
+                targetScrollY = 0.0f;
+                playClick(1.05f);
+                return true;
+            }
+            g3Y += itemH + 2.0f;
+        }
+
+        // 3. Search Bar click
+        float mainX = winX + SIDEBAR_WIDTH + 14.0f;
+        float mainW = (winX + WIN_WIDTH) - mainX - 14.0f;
+        float searchW = 120.0f;
+        float searchH = 20.0f;
+        float searchX = mainX + mainW - searchW;
+        float searchY = winY + 9.0f;
+
+        if (mouseX >= searchX && mouseX <= searchX + searchW && mouseY >= searchY && mouseY <= searchY + searchH) {
+            searchFocused = true;
+            return true;
         } else {
-            modules = ModuleManager.getInstance().getModulesByCategory(currentCategory);
+            searchFocused = false;
         }
 
-        float contentX = mainX;
-        float contentY = winY + 40.0f;
-        float contentW = mainW;
-        float colWidth = (contentW - 10.0f) / 2.0f;
-        float[] colY = new float[]{contentY + scrollY, contentY + scrollY};
+        // 4. Content Area Module Clicks
+        float contentY = winY + 38.0f;
+        float colGap = 12.0f;
+        float colW = (mainW - colGap) / 2.0f;
+        float col1X = mainX;
+        float col2X = mainX + colW + colGap;
 
-        for (int i = 0; i < modules.size(); i++) {
-            Module module = modules.get(i);
-            int col = i % 2;
-            float cardX = contentX + col * (colWidth + 10.0f);
-            float cardY = colY[col];
-            float baseCardH = 44.0f;
-            float settingsH = calculateSettingsHeight(module);
-            float cardH = baseCardH + settingsH * module.getEasedExpand();
+        List<Module> visibleModules = getVisibleModules();
+        float col1Y = contentY + scrollY;
+        float col2Y = contentY + scrollY;
 
-            float switchW = 28.0f;
-            float switchH = 14.0f;
-            float switchX = cardX + colWidth - switchW - 10.0f;
-            float switchY = cardY + (baseCardH - switchH) / 2.0f;
-            float gearX = switchX - 16.0f;
-            float gearY = cardY + (baseCardH - 12.0f) / 2.0f;
+        for (int i = 0; i < visibleModules.size(); i++) {
+            Module module = visibleModules.get(i);
+            boolean useCol1 = (col1Y <= col2Y);
+            float cardX = useCol1 ? col1X : col2X;
+            float cardY = useCol1 ? col1Y : col2Y;
+            float cardH = calculateCardHeight(module);
 
-            // RIGHT CLICK (button == 1) on module card -> EXPAND / COLLAPSE SETTINGS DRAWER!
-            if (button == 1 && mouseX >= cardX && mouseX <= cardX + colWidth && mouseY >= cardY && mouseY <= cardY + baseCardH) {
-                module.toggleExpanded();
-                playClick(module.isExpanded() ? 1.25f : 1.0f);
-                return true;
-            }
+            // Click inside card
+            if (mouseX >= cardX && mouseX <= cardX + colW && mouseY >= cardY && mouseY <= cardY + cardH) {
+                // Header interactions (height 34)
+                if (mouseY <= cardY + 34.0f) {
+                    // Keybind badge click
+                    if (mouseX >= cardX + 10.0f && mouseX <= cardX + 28.0f) {
+                        bindingModule = (bindingModule == module) ? null : module;
+                        playClick(1.1f);
+                        return true;
+                    }
 
-            // LEFT CLICK (button == 0)
-            if (button == 0) {
-                // Chevron click
-                if (mouseX >= gearX - 4 && mouseX <= gearX + 14 && mouseY >= gearY - 4 && mouseY <= gearY + 16) {
-                    module.toggleExpanded();
-                    playClick(module.isExpanded() ? 1.25f : 1.0f);
-                    return true;
-                }
+                    // Gear icon click
+                    float gearX = cardX + colW - 46.0f;
+                    if (mouseX >= gearX - 3.0f && mouseX <= gearX + 15.0f) {
+                        module.setExpanded(!module.isExpanded());
+                        playClick(module.isExpanded() ? 1.15f : 0.95f);
+                        return true;
+                    }
 
-                // Module card / Switch click -> Toggle module ON / OFF
-                if (mouseX >= cardX && mouseX <= cardX + colWidth && mouseY >= cardY && mouseY <= cardY + baseCardH) {
+                    // Toggle switch click
+                    float switchX = cardX + colW - 28.0f;
+                    if (mouseX >= switchX - 2.0f && mouseX <= switchX + 26.0f) {
+                        module.toggle();
+                        return true;
+                    }
+
+                    // Clicking card title also toggles
                     module.toggle();
-                    ModuleManager.getInstance().saveConfig();
-                    playClick(module.isEnabled() ? 1.35f : 0.85f);
                     return true;
-                }
+                } else if (module.isExpanded()) {
+                    // Settings Drawer interactions
+                    float setY = cardY + 39.0f;
+                    for (Setting<?> setting : module.getSettings()) {
+                        if (mouseY >= setY && mouseY <= setY + 21.0f) {
+                            if (setting instanceof NumberSetting num) {
+                                float trackX = cardX + colW - 82.0f;
+                                float trackW = 50.0f;
+                                if (mouseX >= trackX - 6.0f && mouseX <= trackX + trackW + 6.0f) {
+                                    draggingSlider = num;
+                                    float mouseP = (float) (mouseX - trackX) / trackW;
+                                    num.setFromProgress(mouseP);
+                                    playClick(1.2f);
+                                    return true;
+                                }
+                            } else if (setting instanceof ModeSetting mode) {
+                                mode.cycle();
+                                playClick(1.05f);
+                                return true;
+                            } else if (setting instanceof BooleanSetting bool) {
+                                bool.setValue(!bool.getValue());
+                                ClientSounds.play(ClientSounds.TOGGLE, bool.getValue() ? 1.05f : 0.88f, 0.7f);
+                                return true;
+                            } else if (setting instanceof ColorSetting col) {
+                                activeColorPickerSetting = col;
+                                colorPickerX = (float) mouseX - 88.0f;
+                                colorPickerY = (float) mouseY + 10.0f;
+                                float[] hsb = Color.RGBtoHSB(col.getRed(), col.getGreen(), col.getBlue(), null);
+                                pickerHue = hsb[0];
+                                pickerSat = hsb[1];
+                                pickerVal = hsb[2];
+                                playClick(1.1f);
+                                return true;
+                            }
+                        }
+                        setY += 21.0f;
+                    }
 
-                // Settings drawer interaction
-                if (module.isExpanded() && module.getEasedExpand() > 0.2f && mouseY > cardY + baseCardH && mouseY <= cardY + cardH) {
-                    if (handleSettingsClick(module, cardX, cardY + baseCardH, colWidth, mouseX, mouseY)) {
+                    // Keybind row click
+                    if (mouseY >= setY && mouseY <= setY + 21.0f) {
+                        bindingModule = (bindingModule == module) ? null : module;
+                        playClick(1.1f);
                         return true;
                     }
                 }
+                return true;
             }
 
-            colY[col] += cardH + 8.0f;
-        }
-
-        // Click outside the window initiates smooth close
-        boolean insideWindow = mouseX >= winX && mouseX <= winX + WIN_WIDTH && mouseY >= winY && mouseY <= winY + WIN_HEIGHT;
-        float mediaY = winY + WIN_HEIGHT + 8.0f;
-        if (mediaY + 48.0f > this.height - 4.0f) {
-            mediaY = this.height - 48.0f - 4.0f;
-        }
-        boolean insideMedia = showMediaPlayer && mouseX >= winX && mouseX <= winX + WIN_WIDTH && mouseY >= mediaY && mouseY <= mediaY + 48.0f;
-        if (!insideWindow && !insideMedia && button == 0) {
-            closeSmoothly();
-            return true;
+            if (useCol1) {
+                col1Y += cardH + 10.0f;
+            } else {
+                col2Y += cardH + 10.0f;
+            }
         }
 
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
-    private boolean handleSettingsClick(Module module, float startX, float startY, float width, double mouseX, double mouseY) {
-        float currentY = startY + 8.0f;
-
-        // Keybind selector click
-        String keyName = (bindingModule == module) ? "Press any key..." : getKeyName(module.getKeybind());
-        float boxW = Math.max(48.0f, Fonts.medium().getWidth(keyName, 7.0f) + 16.0f);
-        float boxH = 14.0f;
-        float boxX = startX + width - boxW - 12.0f;
-        float boxY = currentY;
-
-        if (mouseY >= boxY - 2.0f && mouseY <= boxY + boxH + 2.0f) {
-            bindingModule = (bindingModule == module) ? null : module;
-            playClick(1.4f);
-            return true;
-        }
-        currentY += 18.0f;
-
-        for (Setting<?> setting : module.getSettings()) {
-            if (setting instanceof NumberSetting num) {
-                float sliderX = startX + 12.0f;
-                float sliderW = width - 24.0f;
-                currentY += 10.0f;
-                if (mouseX >= sliderX && mouseX <= sliderX + sliderW && mouseY >= currentY - 6.0f && mouseY <= currentY + 10.0f) {
-                    float prog = (float) ((mouseX - sliderX) / sliderW);
-                    num.setFromProgress(prog);
-                    draggingSlider = num;
-                    ModuleManager.getInstance().saveConfig();
-                    return true;
-                }
-                currentY += 16.0f;
-            } else if (setting instanceof BooleanSetting bool) {
-                if (mouseY >= currentY && mouseY <= currentY + 14.0f) {
-                    bool.toggle();
-                    ModuleManager.getInstance().saveConfig();
-                    dev.cweldlc.client.util.ClientSounds.play(dev.cweldlc.client.util.ClientSounds.TOGGLE, bool.getValue() ? 1.1f : 0.9f, 0.75f);
-                    return true;
-                }
-                currentY += 18.0f;
-            } else if (setting instanceof ModeSetting mode) {
-                if (mouseY >= currentY && mouseY <= currentY + 16.0f) {
-                    mode.cycle();
-                    modeBounceMap.put(mode, 1.0f);
-                    ModuleManager.getInstance().saveConfig();
-                    playClick(1.2f);
-                    return true;
-                }
-                currentY += 20.0f;
-            }
-        }
-        return false;
-    }
-
-    @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
-        if (isDraggingScrubber) {
-            float winX = (this.width - WIN_WIDTH) / 2.0f;
-            float cardW = WIN_WIDTH;
-            float ctrlCenterX = winX + cardW / 2.0f + 15.0f;
-            float scrubW = 160.0f;
-            float scrubX = ctrlCenterX - scrubW / 2.0f;
-            float prog = (float) Math.max(0.0f, Math.min(1.0f, (mouseX - scrubX) / scrubW));
-            float curProg = MediaManager.getInstance().getProgress();
-            if (prog < curProg - 0.04f && rewindWaveAnim < 0.3f) {
-                rewindWaveAnim = 0.8f;
-            } else if (prog > curProg + 0.04f && forwardWaveAnim < 0.3f) {
-                forwardWaveAnim = 0.8f;
-            }
-            MediaManager.getInstance().seekTo(prog);
-            return true;
-        }
-        if (draggingSlider != null) {
-            float winX = (this.width - WIN_WIDTH) / 2.0f;
-            float colWidth = (WIN_WIDTH - 38.0f) / 2.0f;
-            float sliderW = colWidth - 24.0f;
-            float prog = (float) Math.max(0.0f, Math.min(1.0f, (mouseX - (winX + 26.0f)) / sliderW));
-            draggingSlider.setFromProgress(prog);
-            ModuleManager.getInstance().saveConfig();
-            return true;
-        }
-        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
-    }
-
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         draggingSlider = null;
-        isDraggingScrubber = false;
+        isDraggingSV = false;
+        isDraggingHue = false;
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        targetScrollY += (float) (verticalAmount * 24.0f);
+        targetScrollY += (float) (verticalAmount * 26.0f);
         return true;
     }
 
@@ -1767,12 +939,11 @@ public class ClickGuiScreen extends Screen {
             Module mod = bindingModule;
             if (keyCode == GLFW.GLFW_KEY_ESCAPE || keyCode == GLFW.GLFW_KEY_BACKSPACE) {
                 mod.setKeybind(GLFW.GLFW_KEY_UNKNOWN);
-                dev.cweldlc.client.util.ClientSounds.play(dev.cweldlc.client.util.ClientSounds.CRITICAL, 1.0f, 0.8f);
+                ClientSounds.play(ClientSounds.CRITICAL, 1.0f, 0.8f);
             } else {
                 mod.setKeybind(keyCode);
-                dev.cweldlc.client.util.ClientSounds.play(dev.cweldlc.client.util.ClientSounds.APPLEPAY, 1.0f, 0.85f);
+                ClientSounds.play(ClientSounds.APPLEPAY, 1.0f, 0.85f);
             }
-            bindFlashMap.put(mod, 1.0f);
             bindingModule = null;
             ModuleManager.getInstance().saveConfig();
             return true;
@@ -1782,7 +953,7 @@ public class ClickGuiScreen extends Screen {
             if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
                 if (!searchQuery.isEmpty()) {
                     searchQuery = searchQuery.substring(0, searchQuery.length() - 1);
-                    dev.cweldlc.client.util.ClientSounds.play(dev.cweldlc.client.util.ClientSounds.TYPING, 0.88f, 0.6f);
+                    ClientSounds.play(ClientSounds.TYPING, 0.88f, 0.6f);
                 }
                 return true;
             } else if (keyCode == GLFW.GLFW_KEY_ESCAPE || keyCode == GLFW.GLFW_KEY_ENTER) {
@@ -1804,11 +975,33 @@ public class ClickGuiScreen extends Screen {
         if (searchFocused && Character.isDefined(codePoint) && codePoint >= 32) {
             if (searchQuery.length() < 24) {
                 searchQuery += codePoint;
-                dev.cweldlc.client.util.ClientSounds.play(dev.cweldlc.client.util.ClientSounds.TYPING, 0.95f + (float) (Math.random() * 0.15), 0.6f);
+                ClientSounds.play(ClientSounds.TYPING, 0.95f + (float) (Math.random() * 0.15), 0.6f);
             }
             return true;
         }
         return super.charTyped(codePoint, modifiers);
+    }
+
+    private List<Module> getVisibleModules() {
+        if (!searchQuery.isEmpty()) {
+            String q = searchQuery.toLowerCase();
+            return ModuleManager.getInstance().getModules().stream()
+                    .filter(m -> m.getName().toLowerCase().contains(q) || m.getDescription().toLowerCase().contains(q))
+                    .collect(Collectors.toList());
+        }
+
+        Category targetCategory = switch (selectedSubTab.toLowerCase()) {
+            case "combat" -> Category.COMBAT;
+            case "movement" -> Category.MOVEMENT;
+            case "player" -> Category.PLAYER;
+            case "visuals" -> Category.RENDER;
+            default -> null;
+        };
+
+        if (targetCategory != null) {
+            return ModuleManager.getInstance().getModulesByCategory(targetCategory);
+        }
+        return ModuleManager.getInstance().getModulesByCategory(Category.HUD);
     }
 
     private void closeSmoothly() {
@@ -1838,30 +1031,31 @@ public class ClickGuiScreen extends Screen {
         );
     }
 
+    private static String getKeyInitial(int keyCode) {
+        String name = getKeyName(keyCode);
+        if (name.length() > 3) {
+            return name.substring(0, 1);
+        }
+        return name;
+    }
+
     private static String getKeyName(int keyCode) {
-        if (keyCode == GLFW.GLFW_KEY_UNKNOWN) return "NONE";
+        if (keyCode == GLFW.GLFW_KEY_UNKNOWN) return "None";
         return switch (keyCode) {
-            case GLFW.GLFW_KEY_RIGHT_SHIFT -> "RSHIFT";
-            case GLFW.GLFW_KEY_LEFT_SHIFT -> "LSHIFT";
-            case GLFW.GLFW_KEY_RIGHT_CONTROL -> "RCTRL";
-            case GLFW.GLFW_KEY_LEFT_CONTROL -> "LCTRL";
-            case GLFW.GLFW_KEY_RIGHT_ALT -> "RALT";
-            case GLFW.GLFW_KEY_LEFT_ALT -> "LALT";
-            case GLFW.GLFW_KEY_SPACE -> "SPACE";
-            case GLFW.GLFW_KEY_TAB -> "TAB";
-            case GLFW.GLFW_KEY_CAPS_LOCK -> "CAPS";
-            case GLFW.GLFW_KEY_BACKSPACE -> "BACK";
-            case GLFW.GLFW_KEY_ENTER -> "ENTER";
-            case GLFW.GLFW_KEY_UP -> "UP";
-            case GLFW.GLFW_KEY_DOWN -> "DOWN";
-            case GLFW.GLFW_KEY_LEFT -> "LEFT";
-            case GLFW.GLFW_KEY_RIGHT -> "RIGHT";
+            case GLFW.GLFW_KEY_RIGHT_SHIFT -> "RShift";
+            case GLFW.GLFW_KEY_LEFT_SHIFT -> "LShift";
+            case GLFW.GLFW_KEY_RIGHT_CONTROL -> "RCtrl";
+            case GLFW.GLFW_KEY_LEFT_CONTROL -> "LCtrl";
+            case GLFW.GLFW_KEY_SPACE -> "Space";
+            case GLFW.GLFW_KEY_TAB -> "Tab";
+            case GLFW.GLFW_KEY_BACKSPACE -> "Back";
+            case GLFW.GLFW_KEY_ENTER -> "Enter";
             default -> {
                 String name = GLFW.glfwGetKeyName(keyCode, 0);
                 if (name != null && !name.isEmpty()) {
                     yield name.toUpperCase();
                 }
-                yield "KEY " + keyCode;
+                yield "K" + keyCode;
             }
         };
     }

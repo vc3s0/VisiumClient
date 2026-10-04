@@ -4,7 +4,11 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.cweldlc.CwelDLC;
+import dev.cweldlc.client.module.impl.combat.AimAssistModule;
+import dev.cweldlc.client.module.impl.combat.AntiBotModule;
+import dev.cweldlc.client.module.impl.combat.AttackAuraModule;
 import dev.cweldlc.client.module.impl.combat.AutoClickerModule;
+import dev.cweldlc.client.module.impl.combat.SuperBowModule;
 import dev.cweldlc.client.module.impl.combat.VelocityModule;
 import dev.cweldlc.client.module.impl.hud.DynamicIslandHudModule;
 import dev.cweldlc.client.module.impl.hud.MediaPlayerHudModule;
@@ -49,6 +53,10 @@ public class ModuleManager {
 
     private void registerModules() {
         // Combat
+        modules.add(new AttackAuraModule());
+        modules.add(new AntiBotModule());
+        modules.add(new AimAssistModule());
+        modules.add(new SuperBowModule());
         modules.add(new AutoClickerModule());
         modules.add(new VelocityModule());
 
