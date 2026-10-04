@@ -50,6 +50,9 @@ public abstract class ChatScreenMixin extends Screen {
         this.addWidget(this.input);
         this.setFocused(this.input);
         this.input.setFocused(true);
+
+        CustomChatRenderer.resetOpenAnimation();
+        dev.cweldlc.client.util.ClientSounds.play(dev.cweldlc.client.util.ClientSounds.CLICKGUI_OPEN, 1.35f, 0.4f);
     }
 
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)
@@ -67,9 +70,11 @@ public abstract class ChatScreenMixin extends Screen {
         // 3. Render super (other screen widgets, if any)
         super.render(graphics, mouseX, mouseY, partialTick);
 
-        // 5. Render Command Suggestions elevated
+        // 5. Render Command Suggestions elevated with opening slide
         graphics.pose().pushPose();
-        graphics.pose().translate(0.0F, 0.0F, 200.0F);
+        float openProgress = CustomChatRenderer.getOpenAnimProgress();
+        float sugSlideY = (1.0F - openProgress) * 26.0F;
+        graphics.pose().translate(0.0F, sugSlideY, 200.0F);
         this.commandSuggestions.render(graphics, mouseX, mouseY);
         graphics.pose().popPose();
 

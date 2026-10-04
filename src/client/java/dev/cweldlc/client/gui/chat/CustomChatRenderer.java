@@ -24,7 +24,18 @@ public final class CustomChatRenderer {
 
     private static float smoothInputFocus = 0.0f;
     private static float smoothSuggestionY = -1.0f;
+    private static float openAnimProgress = 0.0f;
     private static long lastChatTime = System.currentTimeMillis();
+
+    public static void resetOpenAnimation() {
+        openAnimProgress = 0.0f;
+        smoothInputFocus = 1.0f;
+        lastChatTime = System.currentTimeMillis();
+    }
+
+    public static float getOpenAnimProgress() {
+        return openAnimProgress;
+    }
 
     // ==========================================
     // 1. SOLID CHAT INPUT BAR (ROCKREADY STYLE)
@@ -35,11 +46,24 @@ public final class CustomChatRenderer {
         float dt = Math.min(0.05f, (now - lastChatTime) / 1000.0f);
         lastChatTime = now;
 
+        openAnimProgress += (1.0f - openAnimProgress) * (1.0f - (float) Math.exp(-dt * 22.0f));
+        if (openAnimProgress > 0.999f) openAnimProgress = 1.0f;
+
         int barX = 4;
         int barY = screenHeight - 20;
         int barW = screenWidth - 8;
         int barH = 16;
         float barR = 6.0f;
+
+        float slideY = (1.0f - openAnimProgress) * 26.0f;
+        float scale = 0.94f + 0.06f * openAnimProgress;
+
+        graphics.pose().pushPose();
+        float centerX = barX + barW / 2.0f;
+        float centerY = barY + barH / 2.0f;
+        graphics.pose().translate(centerX, centerY + slideY, 0.0f);
+        graphics.pose().scale(scale, scale, 1.0f);
+        graphics.pose().translate(-centerX, -centerY, 0.0f);
 
         boolean isHovered = mouseX >= barX && mouseX <= barX + barW && mouseY >= barY && mouseY <= barY + barH;
         boolean isFocused = input.isFocused();
@@ -103,6 +127,7 @@ public final class CustomChatRenderer {
         }
 
         graphics.disableScissor();
+        graphics.pose().popPose();
     }
 
     // ==========================================

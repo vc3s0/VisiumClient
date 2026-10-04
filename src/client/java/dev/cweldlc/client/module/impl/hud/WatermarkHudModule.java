@@ -45,7 +45,7 @@ public class WatermarkHudModule extends Module {
     private static final float BAR_RADIUS   = 5.0f;
     private static final float H_PAD        = 7.0f;
     private static final float ELEMENT_GAP  = 6.0f;
-    private static final float ICON_SIZE    = 8.0f;
+    private static final float ICON_SIZE    = 9.5f;
     private static final float ICON_GAP     = 3.5f;
     private static final float DIVIDER_W    = 1.0f;
     private static final float DIVIDER_H    = 9.0f;
@@ -199,24 +199,6 @@ public class WatermarkHudModule extends Module {
 
     private void drawIcon(GuiGraphics graphics, ResourceLocation loc, float x, float y, float size, int color) {
         if (loc == null || size <= 0) return;
-        try {
-            Minecraft.getInstance().getTextureManager().getTexture(loc).setFilter(true, false);
-        } catch (Exception ignored) {}
-        graphics.blit(
-                RenderType::guiTextured,
-                loc,
-                Math.round(x),
-                Math.round(y),
-                0.0f,
-                0.0f,
-                Math.round(size),
-                Math.round(size),
-                128,
-                128,
-                128,
-                128,
-                color
-        );
-        graphics.flush();
+        GlassRenderUtil.drawTexture(graphics, loc, x, y, size, size, color);
     }
 }

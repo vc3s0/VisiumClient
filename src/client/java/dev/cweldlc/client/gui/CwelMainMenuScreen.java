@@ -31,6 +31,39 @@ public class CwelMainMenuScreen extends Screen {
     private static float transitionProgress = 1.0f;
     private static long lastTime = System.currentTimeMillis();
 
+    static {
+        loadSavedWallpaper();
+    }
+
+    private static void loadSavedWallpaper() {
+        try {
+            java.io.File gameDir = net.minecraft.client.Minecraft.getInstance() != null && net.minecraft.client.Minecraft.getInstance().gameDirectory != null
+                    ? net.minecraft.client.Minecraft.getInstance().gameDirectory
+                    : new java.io.File(".");
+            java.io.File file = new java.io.File(gameDir, "config/visium_wallpaper.txt");
+            if (file.exists()) {
+                String content = java.nio.file.Files.readString(file.toPath()).trim();
+                int idx = Integer.parseInt(content);
+                if (idx >= 0 && idx < BACKGROUNDS.length) {
+                    currentBgIndex = idx;
+                    previousBgIndex = idx;
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private static void saveWallpaper(int idx) {
+        try {
+            java.io.File gameDir = net.minecraft.client.Minecraft.getInstance() != null && net.minecraft.client.Minecraft.getInstance().gameDirectory != null
+                    ? net.minecraft.client.Minecraft.getInstance().gameDirectory
+                    : new java.io.File(".");
+            java.io.File dir = new java.io.File(gameDir, "config");
+            if (!dir.exists()) dir.mkdirs();
+            java.io.File file = new java.io.File(dir, "visium_wallpaper.txt");
+            java.nio.file.Files.writeString(file.toPath(), String.valueOf(idx));
+        } catch (Throwable ignored) {}
+    }
+
     private static final int TEX_WIDTH = 1920;
     private static final int TEX_HEIGHT = 1080;
 
@@ -284,6 +317,7 @@ public class CwelMainMenuScreen extends Screen {
                     if (currentBgIndex != i) {
                         previousBgIndex = currentBgIndex;
                         currentBgIndex = i;
+                        saveWallpaper(currentBgIndex);
                         transitionProgress = 0.0f;
                         dev.cweldlc.client.util.ClientSounds.playToggle();
                     }
@@ -292,6 +326,7 @@ public class CwelMainMenuScreen extends Screen {
             }
             previousBgIndex = currentBgIndex;
             currentBgIndex = (currentBgIndex + 1) % BACKGROUNDS.length;
+            saveWallpaper(currentBgIndex);
             transitionProgress = 0.0f;
             dev.cweldlc.client.util.ClientSounds.playToggle();
             return true;

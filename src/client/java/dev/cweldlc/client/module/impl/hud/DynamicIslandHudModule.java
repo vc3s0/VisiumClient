@@ -151,14 +151,15 @@ public class DynamicIslandHudModule extends Module {
                 } catch (Throwable ignored) {}
 
                 String pingStr = ping + " ms";
+                float pingFontSize = 8.5f;
                 float pingTextX = islandX + currentW + 8.0f;
-                float pingY = islandY + (currentH - 7.0f * 0.72f) / 2.0f;
-                MsdfRenderer.renderText(Fonts.medium(), pingStr, 7.0f, pingColor, graphics.pose().last().pose(), pingTextX, pingY, 0.0f);
+                float pingY = islandY + (currentH - pingFontSize * 0.72f) / 2.0f;
+                MsdfRenderer.renderText(Fonts.medium(), pingStr, pingFontSize, pingColor, graphics.pose().last().pose(), pingTextX, pingY, 0.0f);
 
-                // Vector Wi-Fi icon
+                // Vector Wi-Fi icon matching clock height
                 ResourceLocation wifiIcon = (ping <= 50) ? WIFI_HIGH : ((ping <= 120) ? WIFI_ICON : ((ping <= 250) ? WIFI_LOW : WIFI_ZERO));
-                float iconX = pingTextX + Fonts.medium().getWidth(pingStr, 7.0f) + 4.0f;
-                float iconSize = 9.0f;
+                float iconX = pingTextX + Fonts.medium().getWidth(pingStr, pingFontSize) + 4.5f;
+                float iconSize = 10.5f;
                 float iconY = islandY + (currentH - iconSize) / 2.0f;
                 drawIcon(graphics, wifiIcon, iconX, iconY, iconSize, pingColor);
             }
@@ -392,24 +393,6 @@ public class DynamicIslandHudModule extends Module {
 
     private void drawIcon(GuiGraphics graphics, ResourceLocation loc, float x, float y, float size, int color) {
         if (loc == null || size <= 0) return;
-        try {
-            Minecraft.getInstance().getTextureManager().getTexture(loc).setFilter(true, false);
-        } catch (Exception ignored) {}
-        graphics.blit(
-                RenderType::guiTextured,
-                loc,
-                Math.round(x),
-                Math.round(y),
-                0.0f,
-                0.0f,
-                Math.round(size),
-                Math.round(size),
-                128,
-                128,
-                128,
-                128,
-                color
-        );
-        graphics.flush();
+        GlassRenderUtil.drawTexture(graphics, loc, x, y, size, size, color);
     }
 }

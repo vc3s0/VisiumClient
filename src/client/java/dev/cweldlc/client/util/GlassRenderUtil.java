@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.*;
 import dev.cweldlc.client.theme.ThemeManager;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.CompiledShaderProgram;
+import net.minecraft.client.renderer.CoreShaders;
 import net.minecraft.client.renderer.ShaderDefines;
 import net.minecraft.client.renderer.ShaderProgram;
 import net.minecraft.resources.ResourceLocation;
@@ -199,6 +200,52 @@ public class GlassRenderUtil {
         shader.safeGetUniform("Size").set(width, height);
         shader.safeGetUniform("Radius").set(radius, radius, radius, radius);
         shader.safeGetUniform("Smoothness").set(0.6f);
+
+        Matrix4f matrix = graphics.pose().last().pose();
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+
+        int a = (color >> 24) & 0xFF;
+        int r = (color >> 16) & 0xFF;
+        int g = (color >> 8) & 0xFF;
+        int b = color & 0xFF;
+
+        builder.addVertex(matrix, x, y, 0.0f).setUv(0.0f, 0.0f).setColor(r, g, b, a);
+        builder.addVertex(matrix, x, y + height, 0.0f).setUv(0.0f, 1.0f).setColor(r, g, b, a);
+        builder.addVertex(matrix, x + width, y + height, 0.0f).setUv(1.0f, 1.0f).setColor(r, g, b, a);
+        builder.addVertex(matrix, x + width, y, 0.0f).setUv(1.0f, 0.0f).setColor(r, g, b, a);
+
+        MeshData meshData = builder.build();
+        if (meshData != null) {
+            BufferUploader.drawWithShader(meshData);
+        }
+
+        RenderSystem.enableCull();
+        RenderSystem.disableBlend();
+    }
+
+    /**
+     * Draws an unclipped high-definition texture quad with subpixel float precision and bilinear filtering.
+     */
+    public static void drawTexture(GuiGraphics graphics, ResourceLocation texture, float x, float y, float width, float height, int color) {
+        if (width <= 0 || height <= 0 || texture == null) return;
+
+        graphics.flush();
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.disableCull();
+
+        try {
+            net.minecraft.client.Minecraft.getInstance().getTextureManager().getTexture(texture).setFilter(true, false);
+        } catch (Exception ignored) {}
+
+        RenderSystem.setShaderTexture(0, texture);
+
+        CompiledShaderProgram shader = RenderSystem.setShader(CoreShaders.POSITION_TEX_COLOR);
+        if (shader == null) {
+            RenderSystem.enableCull();
+            RenderSystem.disableBlend();
+            return;
+        }
 
         Matrix4f matrix = graphics.pose().last().pose();
         BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
