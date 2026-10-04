@@ -4,19 +4,53 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.RoundRectangle2D;
+import java.io.File;
 
 public class WelcomeDialog {
 
-    private static boolean shown = false;
+    private static boolean alreadyShown = false;
 
     public static synchronized void showWelcome() {
-        if (shown) return;
-        shown = true;
+        if (alreadyShown) return;
+        alreadyShown = true;
 
         if (GraphicsEnvironment.isHeadless()) {
+            // Spawn headless-immune subprocess
+            try {
+                String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
+                File codeSource = new File(WelcomeDialog.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+                String cp = codeSource.getAbsolutePath();
+
+                // If not standalone jar or classes dir, include current full classpath as fallback
+                String sysCp = System.getProperty("java.class.path");
+                if (sysCp != null && !sysCp.isEmpty()) {
+                    cp = cp + File.pathSeparator + sysCp;
+                }
+
+                ProcessBuilder pb = new ProcessBuilder(
+                        javaBin,
+                        "-Djava.awt.headless=false",
+                        "-cp", cp,
+                        WelcomeDialog.class.getName()
+                );
+                pb.inheritIO();
+                Process process = pb.start();
+                process.waitFor();
+            } catch (Throwable t) {
+                t.printStackTrace();
+            }
             return;
         }
 
+        // Direct in-process rendering
+        displayDialog();
+    }
+
+    public static void main(String[] args) {
+        displayDialog();
+    }
+
+    private static void displayDialog() {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception ignored) {}
@@ -24,8 +58,8 @@ public class WelcomeDialog {
         try {
             JDialog dialog = new JDialog((Frame) null, "VisiumClient - Witaj", true);
             dialog.setUndecorated(true);
-            int width = 450;
-            int height = 270;
+            int width = 460;
+            int height = 280;
             dialog.setSize(width, height);
             dialog.setLocationRelativeTo(null);
             dialog.setAlwaysOnTop(true);
@@ -40,11 +74,11 @@ public class WelcomeDialog {
                     g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
 
                     // Deep obsidian solid background
-                    g2.setColor(new Color(14, 14, 14));
+                    g2.setColor(new Color(12, 12, 12));
                     g2.fillRoundRect(0, 0, getWidth(), getHeight(), 24, 24);
 
                     // Subtle luxury rim
-                    g2.setColor(new Color(36, 36, 36));
+                    g2.setColor(new Color(38, 38, 38));
                     g2.setStroke(new BasicStroke(1.2f));
                     g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 24, 24);
 
@@ -53,7 +87,7 @@ public class WelcomeDialog {
                     int pillH = 24;
                     int pillX = (getWidth() - pillW) / 2;
                     int pillY = 24;
-                    g2.setColor(new Color(26, 26, 26));
+                    g2.setColor(new Color(24, 24, 24));
                     g2.fillRoundRect(pillX, pillY, pillW, pillH, 12, 12);
 
                     g2.setFont(new Font("SansSerif", Font.BOLD, 10));
@@ -82,7 +116,7 @@ public class WelcomeDialog {
                     g2.setFont(new Font("SansSerif", Font.BOLD, 13));
                     g2.setColor(new Color(229, 231, 235));
                     FontMetrics fmUser = g2.getFontMetrics();
-                    g2.drawString(user, (getWidth() - fmUser.stringWidth(user)) / 2, 148);
+                    g2.drawString(user, (getWidth() - fmUser.stringWidth(user)) / 2, 150);
 
                     g2.dispose();
                 }
@@ -113,9 +147,7 @@ public class WelcomeDialog {
             closeBtn.setContentAreaFilled(false);
             closeBtn.setFocusPainted(false);
             closeBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-            closeBtn.addActionListener(e -> {
-                dialog.dispose();
-            });
+            closeBtn.addActionListener(e -> dialog.dispose());
             panel.add(closeBtn);
 
             // Primary Launch Button
@@ -133,13 +165,13 @@ public class WelcomeDialog {
                     }
                     g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
                     g2.setFont(new Font("SansSerif", Font.BOLD, 12));
-                    g2.setColor(new Color(15, 15, 15));
+                    g2.setColor(new Color(12, 12, 12));
                     FontMetrics fm = g2.getFontMetrics();
                     g2.drawString(getText(), (getWidth() - fm.stringWidth(getText())) / 2, (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
                     g2.dispose();
                 }
             };
-            launchBtn.setBounds((width - 210) / 2, 192, 210, 38);
+            launchBtn.setBounds((width - 220) / 2, 195, 220, 40);
             launchBtn.setBorderPainted(false);
             launchBtn.setContentAreaFilled(false);
             launchBtn.setFocusPainted(false);
@@ -195,7 +227,7 @@ public class WelcomeDialog {
             dialog.setVisible(true);
             timer.stop();
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
             e.printStackTrace();
         }
     }

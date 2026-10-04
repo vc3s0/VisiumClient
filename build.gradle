@@ -20,6 +20,12 @@ loom {
 			sourceSet sourceSets.client
 		}
 	}
+
+	runs {
+		client {
+			vmArg "-Djava.awt.headless=false"
+		}
+	}
 }
 
 dependencies {
