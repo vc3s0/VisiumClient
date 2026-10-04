@@ -52,11 +52,19 @@ public class WatermarkHudModule extends Module {
     private static final float ROW_GAP      = 3.0f;
     private static final int DIVIDER_COLOR  = 0xFF71717A; // Zinc-500 sleek gray divider
 
-    private record HudItem(ResourceLocation icon, String text, boolean bold, int color) {}
+    private record HudItem(ResourceLocation icon, String text, boolean bold, int color, boolean isFps) {
+        HudItem(ResourceLocation icon, String text, boolean bold, int color) {
+            this(icon, text, bold, color, false);
+        }
+    }
 
     private float smoothWidth1 = 0.0f;
     private float smoothWidth2 = 0.0f;
     private long lastRenderTime = System.currentTimeMillis();
+
+    private int currentFpsVal = -1;
+    private int oldFpsVal = -1;
+    private float fpsAnim = 1.0f;
 
     public WatermarkHudModule() {
         super("Watermark", "Sleek LiquidGlass HUD watermark", Category.HUD);
@@ -98,7 +106,20 @@ public class WatermarkHudModule extends Module {
         }
 
         if (showFps.getValue()) {
-            row1.add(new HudItem(ICON_FPS, mc.getFps() + "fps", false, 0xFF9CA3AF));
+            int targetFps = mc.getFps();
+            if (currentFpsVal == -1) {
+                currentFpsVal = targetFps;
+                oldFpsVal = targetFps;
+                fpsAnim = 1.0f;
+            } else if (targetFps != currentFpsVal) {
+                oldFpsVal = currentFpsVal;
+                currentFpsVal = targetFps;
+                fpsAnim = 0.0f;
+            }
+            if (fpsAnim < 1.0f) {
+                fpsAnim = Math.min(1.0f, fpsAnim + dt * 4.5f);
+            }
+            row1.add(new HudItem(ICON_FPS, currentFpsVal + "fps", false, 0xFF9CA3AF, true));
         }
 
         if (showPing.getValue()) {
@@ -153,8 +174,16 @@ public class WatermarkHudModule extends Module {
         for (int i = 0; i < items.size(); i++) {
             HudItem item = items.get(i);
             var font = item.bold() ? Fonts.medium() : Fonts.regular();
-            float itemW = (iconsEnabled && item.icon() != null ? ICON_SIZE + ICON_GAP : 0.0f)
-                    + font.getWidth(item.text(), fontSize);
+            float textW;
+            if (item.isFps() && fpsAnim < 1.0f && oldFpsVal != -1) {
+                float oldW = font.getWidth(oldFpsVal + "fps", fontSize);
+                float newW = font.getWidth(currentFpsVal + "fps", fontSize);
+                float ease = (float) (0.5 - 0.5 * Math.cos(fpsAnim * Math.PI));
+                textW = oldW + (newW - oldW) * ease;
+            } else {
+                textW = font.getWidth(item.text(), fontSize);
+            }
+            float itemW = (iconsEnabled && item.icon() != null ? ICON_SIZE + ICON_GAP : 0.0f) + textW;
             contentW += (i == 0 ? 0.0f : dividerSpacing) + itemW;
         }
 
@@ -189,8 +218,36 @@ public class WatermarkHudModule extends Module {
             }
 
             var font = item.bold() ? Fonts.medium() : Fonts.regular();
-            MsdfRenderer.renderText(font, item.text(), fontSize, item.color(), graphics.pose().last().pose(), curX, textY, 0.0f);
-            curX += font.getWidth(item.text(), fontSize);
+
+            if (item.isFps() && fpsAnim < 1.0f && oldFpsVal != -1) {
+                float ease = (float) (0.5 - 0.5 * Math.cos(fpsAnim * Math.PI));
+
+                // Old FPS rolls up and fades out
+                float oldY = textY - ease * 6.5f;
+                int oldAlpha = (int) ((1.0f - ease) * 255.0f);
+                if (oldAlpha > 2) {
+                    int oldColor = (oldAlpha << 24) | (item.color() & 0x00FFFFFF);
+                    MsdfRenderer.renderText(font, oldFpsVal + "fps", fontSize, oldColor, graphics.pose().last().pose(), curX, oldY, 0.0f);
+                }
+
+                // New FPS rolls in from below with subtle brightness pulse
+                float newY = textY + (1.0f - ease) * 6.5f;
+                int newAlpha = (int) (ease * 255.0f);
+                if (newAlpha > 2) {
+                    int pulseR = (int) (156 + (255 - 156) * (1.0f - ease));
+                    int pulseG = (int) (163 + (255 - 163) * (1.0f - ease));
+                    int pulseB = (int) (175 + (255 - 175) * (1.0f - ease));
+                    int newColor = (newAlpha << 24) | (pulseR << 16) | (pulseG << 8) | pulseB;
+                    MsdfRenderer.renderText(font, currentFpsVal + "fps", fontSize, newColor, graphics.pose().last().pose(), curX, newY, 0.0f);
+                }
+
+                float oldW = font.getWidth(oldFpsVal + "fps", fontSize);
+                float newW = font.getWidth(currentFpsVal + "fps", fontSize);
+                curX += oldW + (newW - oldW) * ease;
+            } else {
+                MsdfRenderer.renderText(font, item.text(), fontSize, item.color(), graphics.pose().last().pose(), curX, textY, 0.0f);
+                curX += font.getWidth(item.text(), fontSize);
+            }
         }
 
         graphics.disableScissor();

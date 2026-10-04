@@ -38,6 +38,10 @@ public class DynamicIslandHudModule extends Module {
     private static final ResourceLocation WIFI_LOW  = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/wifi_low.png");
     private static final ResourceLocation WIFI_ZERO = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/wifi_zero.png");
     private static final ResourceLocation ALERT_ICON = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/triangle_alert.png");
+    private static final ResourceLocation ICON_PLAY  = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/play.png");
+    private static final ResourceLocation ICON_PAUSE = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/pause.png");
+    private static final ResourceLocation ICON_PREV  = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/skip_back.png");
+    private static final ResourceLocation ICON_NEXT  = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/icons/skip_forward.png");
 
     public DynamicIslandHudModule() {
         super("DynamicIsland", "Apple styled interactive Dynamic Island top pill", Category.HUD);
@@ -93,8 +97,8 @@ public class DynamicIslandHudModule extends Module {
             }
 
             if (isExtended) {
-                targetW = 174.0f;
-                targetH = 64.0f;
+                targetW = 184.0f;
+                targetH = 82.0f;
             } else {
                 String title = MediaManager.getInstance().getTitle();
                 float titleW = Fonts.medium().getWidth(title, 6.8f);
@@ -264,9 +268,9 @@ public class DynamicIslandHudModule extends Module {
     private void renderExtendedMusic(GuiGraphics graphics, float x, float y, float w, float h, double mouseX, double mouseY) {
         MediaManager media = MediaManager.getInstance();
 
-        // 1. Album Cover (28x28) with smooth rounded corners
-        float coverSize = 28.0f;
-        float coverX = x + 9.0f;
+        // 1. Album Cover (30x30) with smooth rounded corners
+        float coverSize = 30.0f;
+        float coverX = x + 10.0f;
         float coverY = y + 8.0f;
 
         ResourceLocation cover = media.getAlbumArtLocation();
@@ -284,64 +288,67 @@ public class DynamicIslandHudModule extends Module {
         if (Fonts.medium().getWidth(title, 7.5f) > maxTitleW) {
             title = title.substring(0, Math.min(title.length(), 18)) + "...";
         }
-        MsdfRenderer.renderText(Fonts.medium(), title, 7.5f, 0xFFFFFFFF, graphics.pose().last().pose(), titleX, y + 8.5f, 0.0f);
+        MsdfRenderer.renderText(Fonts.medium(), title, 7.5f, 0xFFFFFFFF, graphics.pose().last().pose(), titleX, y + 10.0f, 0.0f);
 
         String artist = media.getArtist();
         if (Fonts.regular().getWidth(artist, 6.2f) > maxTitleW) {
             artist = artist.substring(0, Math.min(artist.length(), 20)) + "...";
         }
-        MsdfRenderer.renderText(Fonts.regular(), artist, 6.2f, 0xFF9CA3AF, graphics.pose().last().pose(), titleX, y + 18.5f, 0.0f);
+        MsdfRenderer.renderText(Fonts.regular(), artist, 6.2f, 0xFF9CA3AF, graphics.pose().last().pose(), titleX, y + 21.5f, 0.0f);
 
-        // 3. Timestamps & Progress Timeline Track
+        // 3. Timestamps & Progress Timeline Track (placed cleanly below album cover)
         float trackX = x + 10.0f;
-        float trackY = y + 41.0f;
+        float trackY = y + 44.0f;
         float trackW = w - 20.0f;
-        float trackH = 2.0f;
+        float trackH = 2.5f;
 
-        // Time strings (Elapsed & Duration)
-        MsdfRenderer.renderText(Fonts.regular(), media.getFormattedPosition(), 5.5f, 0xFF9CA3AF, graphics.pose().last().pose(), trackX, trackY - 8.0f, 0.0f);
-        String durStr = media.getFormattedDuration();
-        float durW = Fonts.regular().getWidth(durStr, 5.5f);
-        MsdfRenderer.renderText(Fonts.regular(), durStr, 5.5f, 0xFF9CA3AF, graphics.pose().last().pose(), trackX + trackW - durW, trackY - 8.0f, 0.0f);
-
-        GlassRenderUtil.fillRoundedRect(graphics, trackX, trackY, trackW, trackH, 1.0f, 0x25FFFFFF);
+        GlassRenderUtil.fillRoundedRect(graphics, trackX, trackY, trackW, trackH, 1.25f, 0x25FFFFFF);
         float fillW = trackW * Math.min(1.0f, Math.max(0.0f, media.getProgress()));
         if (fillW > 1.0f) {
-            GlassRenderUtil.fillRoundedRect(graphics, trackX, trackY, fillW, trackH, 1.0f, 0xFFFFFFFF);
+            GlassRenderUtil.fillRoundedRect(graphics, trackX, trackY, fillW, trackH, 1.25f, 0xFFFFFFFF);
         }
 
-        // 4. Interactive Transport Buttons (Previous, Play/Pause, Next)
-        float btnY = y + 48.0f;
+        // Time strings (Elapsed & Duration) placed below the track bar to never overlap cover
+        float timeY = trackY + trackH + 3.0f;
+        MsdfRenderer.renderText(Fonts.regular(), media.getFormattedPosition(), 5.8f, 0xFF9CA3AF, graphics.pose().last().pose(), trackX, timeY, 0.0f);
+        String durStr = media.getFormattedDuration();
+        float durW = Fonts.regular().getWidth(durStr, 5.8f);
+        MsdfRenderer.renderText(Fonts.regular(), durStr, 5.8f, 0xFF9CA3AF, graphics.pose().last().pose(), trackX + trackW - durW, timeY, 0.0f);
+
+        // 4. Interactive Transport Buttons with Vector PNG icons
+        float btnY = y + 66.0f;
         float centerX = x + w / 2.0f;
 
-        renderButton(graphics, "⏮", centerX - 26.0f, btnY, 14.0f, mouseX, mouseY);
-        renderPlayPauseButton(graphics, media.isPlaying(), centerX, btnY, 15.0f, mouseX, mouseY);
-        renderButton(graphics, "⏭", centerX + 26.0f, btnY, 14.0f, mouseX, mouseY);
+        renderIconButton(graphics, ICON_PREV, centerX - 28.0f, btnY, 15.0f, mouseX, mouseY);
+        renderPlayPauseButton(graphics, media.isPlaying(), centerX, btnY, 18.0f, mouseX, mouseY);
+        renderIconButton(graphics, ICON_NEXT, centerX + 28.0f, btnY, 15.0f, mouseX, mouseY);
     }
 
     private void renderPlayPauseButton(GuiGraphics graphics, boolean playing, float cx, float cy, float size, double mouseX, double mouseY) {
         float rx = cx - size / 2.0f;
-        float ry = cy - 1.0f;
+        float ry = cy - size / 2.0f;
         boolean hovered = mouseX >= rx && mouseX <= rx + size && mouseY >= ry && mouseY <= ry + size;
 
         int bgCol = hovered ? 0x40FFFFFF : 0x22FFFFFF;
         GlassRenderUtil.fillRoundedRect(graphics, rx, ry, size, size, size / 2.0f, bgCol);
 
-        String icon = playing ? "⏸" : "▶";
+        ResourceLocation icon = playing ? ICON_PAUSE : ICON_PLAY;
+        float iconSize = 9.0f;
         int col = hovered ? 0xFFFFFFFF : 0xFFE5E7EB;
-        MsdfRenderer.renderCenteredText(Fonts.medium(), icon, 8.0f, col, graphics.pose().last().pose(), cx, ry + 2.5f, 0.0f);
+        GlassRenderUtil.drawTexture(graphics, icon, cx - iconSize / 2.0f, cy - iconSize / 2.0f, iconSize, iconSize, col);
     }
 
-    private void renderButton(GuiGraphics graphics, String icon, float cx, float cy, float size, double mouseX, double mouseY) {
+    private void renderIconButton(GuiGraphics graphics, ResourceLocation icon, float cx, float cy, float size, double mouseX, double mouseY) {
         float rx = cx - size / 2.0f;
-        float ry = cy - 1.0f;
+        float ry = cy - size / 2.0f;
         boolean hovered = mouseX >= rx && mouseX <= rx + size && mouseY >= ry && mouseY <= ry + size;
 
         if (hovered) {
-            GlassRenderUtil.fillRoundedRect(graphics, rx, ry, size, size, 3.5f, 0x22FFFFFF);
+            GlassRenderUtil.fillRoundedRect(graphics, rx, ry, size, size, 4.0f, 0x22FFFFFF);
         }
+        float iconSize = 9.0f;
         int col = hovered ? 0xFFFFFFFF : 0xFF9CA3AF;
-        MsdfRenderer.renderCenteredText(Fonts.medium(), icon, 7.5f, col, graphics.pose().last().pose(), cx, ry + 2.0f, 0.0f);
+        GlassRenderUtil.drawTexture(graphics, icon, cx - iconSize / 2.0f, cy - iconSize / 2.0f, iconSize, iconSize, col);
     }
 
     @Override
@@ -354,22 +361,22 @@ public class DynamicIslandHudModule extends Module {
         if (mouseX >= islandX && mouseX <= islandX + currentW && mouseY >= islandY && mouseY <= islandY + currentH) {
             if (isExtended) {
                 float centerX = islandX + currentW / 2.0f;
-                float btnY = islandY + 48.0f;
+                float btnY = islandY + 66.0f;
 
                 // Previous
-                if (Math.abs(mouseX - (centerX - 26.0f)) <= 8 && Math.abs(mouseY - (btnY + 6.0f)) <= 8) {
+                if (Math.abs(mouseX - (centerX - 28.0f)) <= 9 && Math.abs(mouseY - btnY) <= 9) {
                     MediaManager.getInstance().previous();
                     dev.cweldlc.client.util.ClientSounds.play(dev.cweldlc.client.util.ClientSounds.TOGGLE, 1.2f, 0.7f);
                     return true;
                 }
                 // Play/Pause
-                if (Math.abs(mouseX - centerX) <= 9 && Math.abs(mouseY - (btnY + 6.5f)) <= 9) {
+                if (Math.abs(mouseX - centerX) <= 10 && Math.abs(mouseY - btnY) <= 10) {
                     MediaManager.getInstance().playPause();
                     dev.cweldlc.client.util.ClientSounds.play(dev.cweldlc.client.util.ClientSounds.TOGGLE, 1.0f, 0.7f);
                     return true;
                 }
                 // Next
-                if (Math.abs(mouseX - (centerX + 26.0f)) <= 8 && Math.abs(mouseY - (btnY + 6.0f)) <= 8) {
+                if (Math.abs(mouseX - (centerX + 28.0f)) <= 9 && Math.abs(mouseY - btnY) <= 9) {
                     MediaManager.getInstance().next();
                     dev.cweldlc.client.util.ClientSounds.play(dev.cweldlc.client.util.ClientSounds.TOGGLE, 1.2f, 0.7f);
                     return true;
@@ -377,7 +384,7 @@ public class DynamicIslandHudModule extends Module {
                 // Seek timeline
                 float trackX = islandX + 10.0f;
                 float trackW = currentW - 20.0f;
-                if (mouseX >= trackX && mouseX <= trackX + trackW && mouseY >= islandY + 36.0f && mouseY <= islandY + 46.0f) {
+                if (mouseX >= trackX && mouseX <= trackX + trackW && mouseY >= islandY + 39.0f && mouseY <= islandY + 49.0f) {
                     float ratio = (float) (mouseX - trackX) / trackW;
                     MediaManager.getInstance().seekTo(ratio);
                     return true;
