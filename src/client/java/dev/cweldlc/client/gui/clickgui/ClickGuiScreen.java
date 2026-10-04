@@ -10,6 +10,7 @@ import dev.cweldlc.client.module.setting.ColorSetting;
 import dev.cweldlc.client.module.setting.ModeSetting;
 import dev.cweldlc.client.module.setting.NumberSetting;
 import dev.cweldlc.client.module.setting.Setting;
+import dev.cweldlc.client.util.AnimatedGifRenderer;
 import dev.cweldlc.client.util.ClientSounds;
 import dev.cweldlc.client.util.GlassRenderUtil;
 import net.minecraft.client.Minecraft;
@@ -164,16 +165,12 @@ public class ClickGuiScreen extends Screen {
         float x = winX;
         float w = SIDEBAR_WIDTH;
 
-        // Top App Icon (Squircle with purple gradient)
+        // Top App Icon: Animated Visium GIF logo
         float iconX = x + 14.0f;
         float iconY = winY + 14.0f;
         float iconSize = 28.0f;
-        GlassRenderUtil.fillGradientRoundedRect(graphics, iconX, iconY, iconSize, iconSize, 8.0f, applyAlpha(0xFF7C3AED, alpha), applyAlpha(0xFFA855F7, alpha));
-
-        // Stylized 'V' glyph inside squircle
-        GlassRenderUtil.fillRoundedRect(graphics, iconX + 7.0f, iconY + 8.0f, 4.0f, 10.0f, 2.0f, applyAlpha(0xFFFFFFFF, alpha));
-        GlassRenderUtil.fillRoundedRect(graphics, iconX + 17.0f, iconY + 8.0f, 4.0f, 10.0f, 2.0f, applyAlpha(0xFFFFFFFF, alpha));
-        GlassRenderUtil.fillRoundedRect(graphics, iconX + 7.0f, iconY + 15.0f, 14.0f, 4.0f, 2.0f, applyAlpha(0xFFFFFFFF, alpha));
+        AnimatedGifRenderer.VISIUM_LOGO.render(graphics, iconX, iconY, iconSize, iconSize, 8.0f, applyAlpha(0xFFFFFFFF, alpha));
+        GlassRenderUtil.drawRoundedOutline(graphics, (int) iconX, (int) iconY, (int) iconSize, (int) iconSize, 8, 0.6f, applyAlpha(0xFF282836, alpha));
 
         // Branding: "VisiumClient" & "beta"
         MsdfRenderer.renderText(Fonts.bold(), "VisiumClient", 10.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), x + 48.0f, winY + 15.0f, 0.0f);

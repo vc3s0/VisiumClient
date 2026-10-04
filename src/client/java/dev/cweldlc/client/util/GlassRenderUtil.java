@@ -176,6 +176,7 @@ public class GlassRenderUtil {
     public static void drawRoundedTexture(GuiGraphics graphics, ResourceLocation texture, float x, float y, float width, float height, float radius, int color) {
         if (width <= 0 || height <= 0 || texture == null) return;
 
+        graphics.flush();
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.disableCull();

@@ -25,6 +25,9 @@ public class CwelDLCClient implements ClientModInitializer {
         // Initialize Client Sounds
         dev.cweldlc.client.util.ClientSounds.init();
 
+        // Preload Visium Animated GIF Logo
+        dev.cweldlc.client.util.AnimatedGifRenderer.VISIUM_LOGO.load();
+
         // Register ClickGUI Keybind (Right Shift)
         clickGuiKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
                 "key.cweldlc.clickgui",
