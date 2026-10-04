@@ -8,6 +8,7 @@ import dev.cweldlc.client.module.Module;
 import dev.cweldlc.client.module.setting.BooleanSetting;
 import dev.cweldlc.client.notification.NotificationManager;
 import dev.cweldlc.client.theme.ThemeManager;
+import dev.cweldlc.client.util.AnimatedGifRenderer;
 import dev.cweldlc.client.util.GlassRenderUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -89,7 +90,7 @@ public class DynamicIslandHudModule extends Module {
                 targetH = 17.0f;
             }
         } else {
-            targetW = Fonts.medium().getWidth("Visium", 6.8f) + 28.0f;
+            targetW = Fonts.medium().getWidth("Visium", 6.8f) + 24.0f;
             targetH = 17.0f;
             isExtended = false;
         }
@@ -99,7 +100,14 @@ public class DynamicIslandHudModule extends Module {
         currentH += (targetH - currentH) * (1.0f - (float) Math.exp(-dt * 18.0f));
         extendAnim += ((isExtended ? 1.0f : 0.0f) - extendAnim) * (1.0f - (float) Math.exp(-dt * 16.0f));
 
-        float islandX = screenW / 2.0f - currentW / 2.0f;
+        boolean showDetachedGif = (notif == null && !hasMusic && extendAnim < 0.1f);
+        float bubbleSize = currentH;
+        float bubbleGap = 5.0f;
+        float totalW = showDetachedGif ? (bubbleSize + bubbleGap + currentW) : currentW;
+        float groupStartX = screenW / 2.0f - totalW / 2.0f;
+
+        float bubbleX = groupStartX;
+        float islandX = showDetachedGif ? (groupStartX + bubbleSize + bubbleGap) : groupStartX;
         float islandY = topY;
         float cornerRadius = Math.min(currentH / 2.0f, 14.0f);
 
@@ -109,12 +117,13 @@ public class DynamicIslandHudModule extends Module {
             int clockColor = applyAlpha(0xFFFFFFFF, outerAlpha);
             int pingColor = applyAlpha(0xFFE5E7EB, outerAlpha);
 
-            // Larger Clock on the Left
+            // Larger Clock on the Left (positioned relative to leftmost element)
             if (showClock.getValue()) {
                 String timeStr = LocalTime.now().format(TIME_FMT);
                 float timeW = Fonts.medium().getWidth(timeStr, 8.5f);
                 float timeY = islandY + (currentH - 8.5f * 0.72f) / 2.0f;
-                MsdfRenderer.renderText(Fonts.medium(), timeStr, 8.5f, clockColor, graphics.pose().last().pose(), islandX - timeW - 9.0f, timeY, 0.0f);
+                float clockRefX = showDetachedGif ? bubbleX : islandX;
+                MsdfRenderer.renderText(Fonts.medium(), timeStr, 8.5f, clockColor, graphics.pose().last().pose(), clockRefX - timeW - 9.0f, timeY, 0.0f);
             }
 
             // Ping on the Right
@@ -149,8 +158,16 @@ public class DynamicIslandHudModule extends Module {
             }
         }
 
-        // 2. Pure OLED Pitch-Black Capsule Island Backing (Monochrome B&W, no borders)
+        // 2. Pure OLED Pitch-Black Backing (Monochrome B&W, no borders)
         int islandBg = 0xF8000000;
+
+        // Detached Satellite Bubble with Visium GIF (visually detached from the main island)
+        if (showDetachedGif) {
+            GlassRenderUtil.fillRoundedRect(graphics, bubbleX, islandY, bubbleSize, currentH, cornerRadius, islandBg);
+            AnimatedGifRenderer.VISIUM_LOGO.render(graphics, bubbleX + 2.0f, islandY + 2.0f, bubbleSize - 4.0f, currentH - 4.0f, (currentH - 4.0f) / 2.0f, 0xFFFFFFFF);
+        }
+
+        // Main Island Backing
         GlassRenderUtil.fillRoundedRect(graphics, islandX, islandY, currentW, currentH, cornerRadius, islandBg);
 
         // 3. Render Island Internal State (Strictly Black & White)
@@ -168,16 +185,17 @@ public class DynamicIslandHudModule extends Module {
     }
 
     private void renderDefault(GuiGraphics graphics, float x, float y, float w, float h) {
-        float dotSize = 4.0f;
-        float dotX = x + 7.0f;
-        float dotY = y + (h - dotSize) / 2.0f;
+        float textW = Fonts.medium().getWidth("Visium", 6.8f);
+        float dotSize = 3.5f;
+        float totalContent = dotSize + 4.5f + textW;
+        float startX = x + (w - totalContent) / 2.0f;
 
         // Subtle glowing white breathing dot
         float pulse = 0.8f + 0.2f * (float) Math.sin(System.currentTimeMillis() / 350.0);
         int dotColor = applyAlpha(0xFFFFFFFF, pulse);
-        GlassRenderUtil.fillRoundedRect(graphics, dotX, dotY, dotSize, dotSize, 2.0f, dotColor);
+        GlassRenderUtil.fillRoundedRect(graphics, startX, y + (h - dotSize) / 2.0f, dotSize, dotSize, dotSize / 2.0f, dotColor);
 
-        float textX = dotX + dotSize + 5.0f;
+        float textX = startX + dotSize + 4.5f;
         float textY = y + (h - 6.8f * 0.72f) / 2.0f;
         MsdfRenderer.renderText(Fonts.medium(), "Visium", 6.8f, 0xFFFFFFFF, graphics.pose().last().pose(), textX, textY, 0.0f);
     }

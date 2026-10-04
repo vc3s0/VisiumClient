@@ -12,6 +12,7 @@ import dev.cweldlc.client.module.setting.NumberSetting;
 import dev.cweldlc.client.module.setting.Setting;
 import dev.cweldlc.client.util.AnimatedGifRenderer;
 import dev.cweldlc.client.util.ClientSounds;
+import dev.cweldlc.client.util.DiscordRPC;
 import dev.cweldlc.client.util.GlassRenderUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -199,16 +200,28 @@ public class ClickGuiScreen extends Screen {
         float avatarY = profY + 3.0f;
         float avatarSize = 24.0f;
 
-        // Circular avatar with cyan/purple gradient
-        GlassRenderUtil.fillGradientRoundedRect(graphics, avatarX, avatarY, avatarSize, avatarSize, avatarSize / 2.0f, applyAlpha(0xFF0284C7, alpha), applyAlpha(0xFF6366F1, alpha));
-        GlassRenderUtil.drawRoundedOutline(graphics, (int) avatarX, (int) avatarY, (int) avatarSize, (int) avatarSize, (int) (avatarSize / 2.0f), 1.0f, applyAlpha(0xFF38BDF8, alpha));
+        // Circular avatar: Discord avatar or gradient fallback
+        DiscordRPC.checkFetchAvatar();
+        ResourceLocation discordAvatar = DiscordRPC.getAvatarTexture();
 
-        String username = Minecraft.getInstance().player != null ? Minecraft.getInstance().player.getGameProfile().getName() : System.getProperty("user.name", "Player");
-        String initial = username.isEmpty() ? "P" : username.substring(0, 1).toUpperCase();
-        MsdfRenderer.renderCenteredText(Fonts.bold(), initial, 11.0f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), avatarX + avatarSize / 2.0f, avatarY + 7.0f, 0.0f);
+        if (discordAvatar != null) {
+            GlassRenderUtil.drawRoundedTexture(graphics, discordAvatar, avatarX, avatarY, avatarSize, avatarSize, avatarSize / 2.0f, applyAlpha(0xFFFFFFFF, alpha));
+            GlassRenderUtil.drawRoundedOutline(graphics, (int) avatarX, (int) avatarY, (int) avatarSize, (int) avatarSize, (int) (avatarSize / 2.0f), 1.0f, applyAlpha(0x55FFFFFF, alpha));
+        } else {
+            GlassRenderUtil.fillGradientRoundedRect(graphics, avatarX, avatarY, avatarSize, avatarSize, avatarSize / 2.0f, applyAlpha(0xFF0284C7, alpha), applyAlpha(0xFF6366F1, alpha));
+            GlassRenderUtil.drawRoundedOutline(graphics, (int) avatarX, (int) avatarY, (int) avatarSize, (int) avatarSize, (int) (avatarSize / 2.0f), 1.0f, applyAlpha(0xFF38BDF8, alpha));
+
+            String username = Minecraft.getInstance().player != null ? Minecraft.getInstance().player.getGameProfile().getName() : System.getProperty("user.name", "Player");
+            String initial = username.isEmpty() ? "P" : username.substring(0, 1).toUpperCase();
+            MsdfRenderer.renderCenteredText(Fonts.bold(), initial, 11.0f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), avatarX + avatarSize / 2.0f, avatarY + 7.0f, 0.0f);
+        }
 
         // Username & Expiry date
-        MsdfRenderer.renderText(Fonts.bold(), username, 8.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), avatarX + avatarSize + 8.0f, profY + 5.0f, 0.0f);
+        String displayUser = DiscordRPC.getDisplayName();
+        if (displayUser == null || displayUser.isEmpty()) {
+            displayUser = Minecraft.getInstance().player != null ? Minecraft.getInstance().player.getGameProfile().getName() : System.getProperty("user.name", "Player");
+        }
+        MsdfRenderer.renderText(Fonts.bold(), displayUser, 8.5f, applyAlpha(0xFFFFFFFF, alpha), graphics.pose().last().pose(), avatarX + avatarSize + 8.0f, profY + 5.0f, 0.0f);
         MsdfRenderer.renderText(Fonts.regular(), "Till: 12.05.2027", 6.5f, applyAlpha(0xFF6B7280, alpha), graphics.pose().last().pose(), avatarX + avatarSize + 8.0f, profY + 17.0f, 0.0f);
 
         // Purple spinner status ring

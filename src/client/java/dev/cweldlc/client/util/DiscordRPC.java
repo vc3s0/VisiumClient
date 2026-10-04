@@ -2,12 +2,17 @@ package dev.cweldlc.client.util;
 
 import net.minecraft.client.Minecraft;
 
+import com.mojang.blaze3d.platform.NativeImage;
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.resources.ResourceLocation;
+
 import java.net.StandardProtocolFamily;
 import java.net.UnixDomainSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -36,6 +41,94 @@ public class DiscordRPC {
     // Current state
     private static volatile String currentDetails = "Playing Minecraft";
     private static volatile String currentState = "In Menu";
+
+    // Discord user info — populated on READY
+    public static volatile String userId = "";
+    public static volatile String username = "";
+    public static volatile String globalName = "";
+    public static volatile String avatarHash = "";
+    public static volatile ResourceLocation avatarTexture = null;
+    private static volatile boolean fetchingAvatar = false;
+
+    /** Returns the CDN URL for the user's avatar, or null if not yet connected */
+    public static String getAvatarUrl(int size) {
+        if (userId.isEmpty() || avatarHash.isEmpty() || avatarHash.equalsIgnoreCase("null")) return null;
+        return "https://cdn.discordapp.com/avatars/" + userId + "/" + avatarHash + ".png?size=" + size;
+    }
+
+    public static ResourceLocation getAvatarTexture() {
+        return avatarTexture;
+    }
+
+    public static String getDisplayName() {
+        if (globalName != null && !globalName.isEmpty() && !globalName.equalsIgnoreCase("null")) {
+            return globalName;
+        }
+        if (username != null && !username.isEmpty() && !username.equalsIgnoreCase("null")) {
+            return username;
+        }
+        return null;
+    }
+
+    public static void checkFetchAvatar() {
+        if (avatarTexture == null && !avatarHash.isEmpty() && !avatarHash.equalsIgnoreCase("null") && !fetchingAvatar) {
+            fetchAvatarAsync(userId, avatarHash);
+        }
+    }
+
+    public static void fetchAvatarAsync(String uid, String hash) {
+        if (uid == null || uid.isEmpty() || hash == null || hash.isEmpty() || hash.equalsIgnoreCase("null")) return;
+        if (fetchingAvatar || avatarTexture != null) return;
+        fetchingAvatar = true;
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                String avatarUrl = "https://cdn.discordapp.com/avatars/" + uid + "/" + hash + ".png?size=128";
+                java.net.URL url = java.net.URI.create(avatarUrl).toURL();
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (VisiumClient; Linux)");
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                if (conn.getResponseCode() == 200) {
+                    try (java.io.InputStream is = conn.getInputStream()) {
+                        java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(is);
+                        if (img != null) {
+                            int w = img.getWidth();
+                            int h = img.getHeight();
+                            NativeImage nativeImg = new NativeImage(NativeImage.Format.RGBA, w, h, false);
+                            int[] pixels = img.getRGB(0, 0, w, h, null, 0, w);
+                            for (int y = 0; y < h; y++) {
+                                for (int x = 0; x < w; x++) {
+                                    nativeImg.setPixel(x, y, pixels[y * w + x]);
+                                }
+                            }
+                            Minecraft mc = Minecraft.getInstance();
+                            if (mc != null) {
+                                mc.execute(() -> {
+                                    try {
+                                        ResourceLocation loc = ResourceLocation.fromNamespaceAndPath("cweldlc", "textures/gui/discord_avatar");
+                                        DynamicTexture tex = new DynamicTexture(nativeImg);
+                                        tex.upload();
+                                        mc.getTextureManager().register(loc, tex);
+                                        avatarTexture = loc;
+                                    } catch (Exception e) {
+                                        nativeImg.close();
+                                    }
+                                });
+                            } else {
+                                nativeImg.close();
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                // Ignore network error
+            } finally {
+                fetchingAvatar = false;
+            }
+        });
+    }
+
 
     public static void start() {
         if (running.getAndSet(true)) return;
@@ -114,8 +207,19 @@ public class DiscordRPC {
             } catch (Exception ignored) {}
         }
 
+        // Parse user info: id, username, global_name, avatar
+        userId     = extractJsonString(resp, "\"id\"");
+        username   = extractJsonString(resp, "\"username\"");
+        globalName = extractJsonString(resp, "\"global_name\"");
+        avatarHash = extractJsonString(resp, "\"avatar\"");
+
+        if (!avatarHash.isEmpty() && !avatarHash.equalsIgnoreCase("null")) {
+            fetchAvatarAsync(userId, avatarHash);
+        }
+
         connected.set(true);
         sendPresence();
+
 
         // Schedule periodic presence updates and heartbeat
         if (heartbeatTask != null) heartbeatTask.cancel(false);
@@ -250,5 +354,32 @@ public class DiscordRPC {
 
     private static String escape(String s) {
         return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    /** Minimal JSON string extractor — finds first occurrence of key and returns its string value */
+    private static String extractJsonString(String json, String key) {
+        try {
+            int ki = json.indexOf(key);
+            if (ki < 0) return "";
+            int colon = json.indexOf(':', ki + key.length());
+            if (colon < 0) return "";
+            int comma = json.indexOf(',', colon);
+            int brace = json.indexOf('}', colon);
+            int end = json.length();
+            if (comma >= 0 && brace >= 0) end = Math.min(comma, brace);
+            else if (comma >= 0) end = comma;
+            else if (brace >= 0) end = brace;
+
+            String val = json.substring(colon + 1, end).trim();
+            if (val.startsWith("\"")) {
+                int qe = val.indexOf('"', 1);
+                if (qe > 1) {
+                    return val.substring(1, qe);
+                }
+            }
+            return "";
+        } catch (Exception e) {
+            return "";
+        }
     }
 }
