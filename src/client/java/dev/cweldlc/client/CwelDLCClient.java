@@ -39,17 +39,47 @@ public class CwelDLCClient implements ClientModInitializer {
         // Initialize Module Manager
         ModuleManager.getInstance();
 
+        // Start Discord Rich Presence
+        dev.cweldlc.client.util.DiscordRPC.start();
+
+        // Tick counter for RPC updates (every ~5s @ 20tps)
+        int[] rpcTickCounter = {0};
+
         // Client Tick Handler
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (clickGuiKey.consumeClick()) {
                 client.setScreen(new ClickGuiScreen());
             }
             ModuleManager.getInstance().onTick();
+
+            // Update Discord RPC state every 5 seconds
+            rpcTickCounter[0]++;
+            if (rpcTickCounter[0] >= 100) {
+                rpcTickCounter[0] = 0;
+                String details, state;
+                if (client.level != null && client.player != null) {
+                    details = "Playing VisiumClient";
+                    if (client.getCurrentServer() != null) {
+                        state = "On: " + client.getCurrentServer().ip;
+                    } else {
+                        state = "Singleplayer";
+                    }
+                } else {
+                    details = "In Main Menu";
+                    state = "VisiumClient";
+                }
+                dev.cweldlc.client.util.DiscordRPC.updatePresence(details, state);
+            }
         });
 
         // 2D HUD Rendering Handler
         HudRenderCallback.EVENT.register((graphics, deltaTracker) -> {
             ModuleManager.getInstance().onRender2D(graphics, deltaTracker.getGameTimeDeltaPartialTick(false));
         });
+
+        // Shutdown hook: stop Discord RPC
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            dev.cweldlc.client.util.DiscordRPC.stop();
+        }, "DiscordRPC-Shutdown"));
     }
 }
