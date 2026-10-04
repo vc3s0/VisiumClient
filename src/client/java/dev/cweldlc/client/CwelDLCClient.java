@@ -19,6 +19,9 @@ public class CwelDLCClient implements ClientModInitializer {
     public void onInitializeClient() {
         CwelDLC.LOGGER.info("[VisiumClient] Initializing client subsystems, LiquidGlass render engine & Apple widgets.");
 
+        // Show Welcome Dialog before Minecraft completes launching
+        dev.cweldlc.client.gui.welcome.WelcomeDialog.showWelcome();
+
         // Initialize Client Sounds
         dev.cweldlc.client.util.ClientSounds.init();
 
