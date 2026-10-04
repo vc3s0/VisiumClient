@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class DiscordRPC {
 
     // Discord Application ID — uses Ekspresowy Bot's application
-    private static final String CLIENT_ID = "1530001346688843862";
+    private static final String CLIENT_ID = "1556299557791469598";
     private static final long START_TIME = System.currentTimeMillis();
 
     private static SocketChannel socket;
@@ -165,10 +165,8 @@ public class DiscordRPC {
                         + "\"state\":\"" + escape(currentState) + "\","
                         + "\"timestamps\":{\"start\":" + (START_TIME / 1000L) + "},"
                         + "\"assets\":{"
-                            + "\"large_image\":\"mp:attachments/1526711318227452065/1291795696617365645/visium_logo.png\","
-                            + "\"large_text\":\"VisiumClient\","
-                            + "\"small_image\":\"mp:attachments/1526711318227452065/1291795696617365645/visium_logo.png\","
-                            + "\"small_text\":\"VisiumClient\""
+                            + "\"large_image\":\"visiumclient\","
+                            + "\"large_text\":\"VisiumClient\""
                         + "},"
                         + "\"type\":0"
                     + "}"
